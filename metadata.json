@@ -1,0 +1,6 @@
+{
+  "name": "El Tiempo",
+  "description": "Pronóstico meteorológico en tiempo real con fondos atmosféricos animados, carrusel horario 3D, pronóstico a 7 días y recomendaciones de vestimenta.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

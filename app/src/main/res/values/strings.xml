@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">El Tiempo</string>
+    <string name="widget_name">El Tiempo (2x2)</string>
+    <string name="widget_description">Muestra la ubicación, temperatura actual y el estado del tiempo.</string>
+</resources>
