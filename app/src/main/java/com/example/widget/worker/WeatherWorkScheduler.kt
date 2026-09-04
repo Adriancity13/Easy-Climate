@@ -69,4 +69,35 @@ object WeatherWorkScheduler {
             Log.e("WeatherWorkScheduler", "Failed to enqueue one-time weather update: ${e.message}", e)
         }
     }
+
+    /**
+     * Immediately triggers background update for newly detected location (threshold 300-500m).
+     * Resolves new barrio and updates home screen widget instantly without waiting for the 1-hour cycle.
+     */
+    fun enqueueLocationUpdateSync(context: Context, newLat: Double, newLon: Double) {
+        try {
+            val inputData = androidx.work.workDataOf(
+                "new_lat" to newLat,
+                "new_lon" to newLon,
+                "force_location_sync" to true
+            )
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+
+            val locationRequest = OneTimeWorkRequestBuilder<WeatherUpdateWorker>()
+                .setInputData(inputData)
+                .setConstraints(constraints)
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "weather_location_change_sync",
+                ExistingWorkPolicy.REPLACE,
+                locationRequest
+            )
+            Log.d("WeatherWorkScheduler", "Immediate location change sync enqueued for ($newLat, $newLon)")
+        } catch (e: Exception) {
+            Log.e("WeatherWorkScheduler", "Failed to enqueue location change sync: ${e.message}", e)
+        }
+    }
 }

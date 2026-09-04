@@ -24,6 +24,9 @@ class MainActivity : ComponentActivity() {
     // Initialize background WorkManager periodic task for native widget
     WeatherWorkScheduler.schedulePeriodicWeatherUpdate(this)
 
+    // Start background location tracking if permission is already granted
+    com.example.widget.LocationTrackingManager.startLocationTracking(this)
+
     // Optimize for high refresh rate displays (120 Hz / 90 Hz)
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
       try {

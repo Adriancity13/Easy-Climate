@@ -1,6 +1,8 @@
 package com.example.data.api
 
 import com.example.data.models.GeocodingSearchResponse
+import com.example.data.models.NominatimReverseResponse
+import com.example.data.models.NominatimSearchResultItem
 import com.example.data.models.OpenMeteoWeatherResponse
 import com.example.data.models.ReverseGeocodeResponse
 import com.squareup.moshi.Moshi
@@ -44,6 +46,26 @@ interface ReverseGeocodeApi {
     ): ReverseGeocodeResponse
 }
 
+interface NominatimApi {
+    @GET("search")
+    suspend fun searchLocations(
+        @Query("q") query: String,
+        @Query("format") format: String = "json",
+        @Query("addressdetails") addressdetails: Int = 1,
+        @Query("limit") limit: Int = 8,
+        @Query("accept-language") language: String = "es"
+    ): List<NominatimSearchResultItem>
+
+    @GET("reverse")
+    suspend fun reverseGeocode(
+        @Query("lat") latitude: Double,
+        @Query("lon") longitude: Double,
+        @Query("format") format: String = "json",
+        @Query("addressdetails") addressdetails: Int = 1,
+        @Query("accept-language") language: String = "es"
+    ): NominatimReverseResponse
+}
+
 object ApiClient {
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
@@ -55,6 +77,15 @@ object ApiClient {
         .addInterceptor(HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         })
+        .build()
+
+    private val nominatimOkHttpClient = okHttpClient.newBuilder()
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("User-Agent", "ElTiempo-Android-App/2.0 (contact: support@eltiempo.example.com)")
+                .build()
+            chain.proceed(request)
+        }
         .build()
 
     val openMeteoApi: OpenMeteoApi by lazy {
@@ -82,5 +113,14 @@ object ApiClient {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(ReverseGeocodeApi::class.java)
+    }
+
+    val nominatimApi: NominatimApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://nominatim.openstreetmap.org/")
+            .client(nominatimOkHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(NominatimApi::class.java)
     }
 }

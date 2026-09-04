@@ -16,6 +16,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         WeatherWorkScheduler.schedulePeriodicWeatherUpdate(context)
+        LocationTrackingManager.startLocationTracking(context)
     }
 
     override fun onUpdate(
@@ -24,6 +25,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         WeatherWorkScheduler.schedulePeriodicWeatherUpdate(context)
+        LocationTrackingManager.startLocationTracking(context)
         val prefs = context.getSharedPreferences("weather_app_prefs", Context.MODE_PRIVATE)
         val cityName = prefs.getString("cached_name", "Madrid") ?: "Madrid"
         val temp = prefs.getInt("cached_temp", 24)
@@ -124,12 +126,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_weather_2x2)
 
-            // Extract display city name (first part before comma if long)
-            val displayName = if (cityName.contains(",")) {
-                cityName.substringBefore(",").trim()
-            } else {
-                cityName.trim()
-            }
+            // Explicitly preserve Barrio and City format (e.g. "Delicias, Madrid" or "Casa de Campo, Madrid")
+            val displayName = formatWidgetLocation(cityName)
 
             views.setTextViewText(R.id.widget_location, displayName)
             views.setTextViewText(R.id.widget_temperature, "$temp°")
@@ -169,6 +167,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 71, 73, 75 -> R.drawable.ic_widget_snow
                 82, 95, 96, 99 -> R.drawable.ic_widget_storm
                 else -> if (isDay) R.drawable.ic_widget_sun else R.drawable.ic_widget_moon
+            }
+        }
+
+        fun formatWidgetLocation(name: String): String {
+            val trimmed = name.trim()
+            if (!trimmed.contains(",")) return trimmed
+            val parts = trimmed.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            return when {
+                parts.size >= 2 -> "${parts[0]}, ${parts[1]}"
+                parts.size == 1 -> parts[0]
+                else -> trimmed
             }
         }
     }

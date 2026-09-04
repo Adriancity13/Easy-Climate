@@ -19,6 +19,9 @@ class BootCompletedReceiver : BroadcastReceiver() {
         ) {
             // Re-schedule and ensure background updates are active
             WeatherWorkScheduler.schedulePeriodicWeatherUpdate(context)
+
+            // Re-start background location tracking if permission is granted
+            LocationTrackingManager.startLocationTracking(context)
         }
     }
 }

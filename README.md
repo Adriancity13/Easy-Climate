@@ -17,23 +17,26 @@ Una aplicación meteorológica moderna, fluida y elegante para Android, desarrol
 * **Pronóstico Extendido a 7 Días:** Acordeón interactivo con desglose de temperaturas máximas y mínimas, horas de amanecer y atardecer, y probabilidad de lluvia.
 * **Recomendaciones Inteligentes:** Sugerencias automáticas de vestimenta y precauciones (paraguas, ropa de abrigo, protección solar) calculadas según las condiciones presentes.
 
-### 📍 3. Geolocalización y Búsqueda Global
-* **Ubicación GPS Automática:** Detección de posición precisa con *Google Play Services FusedLocationProvider*.
-* **Búsqueda Inteligente de Ciudades:** Autocompletado rápido de localidades mundiales con soporte de geocodificación inversa.
+### 📍 3. Geolocalización Micro-local y Búsqueda por Barrios
+* **Búsqueda Micro-local de Barrios y Distritos:** Barra de búsqueda inteligente con soporte para nombres de barrios, distritos y zonas locales (ej. *Delicias*, *Casa de Campo*, *Malasaña*, *Triana*, *Gràcia*, etc.), además de ciudades y municipios.
+* **Autocompletado y Formato Claro:** Sugerencias con distintivo `[Barrio]` indicando explícitamente el barrio y la ciudad a la que pertenece (ejemplo: `Delicias · Madrid, España`).
+* **Geocodificación con OpenStreetMap (Nominatim):** Extracción granular de jerarquías territoriales (`neighbourhood`, `quarter`, `suburb`, `city_district`, `borough`) con respaldo continuo de Open-Meteo.
+* **Coordenadas GPS de Alta Precisión:** Al seleccionar un barrio, se consulta el pronóstico micro-local con sus coordenadas exactas, reflejando el nombre en formato `Barrio, Ciudad` tanto en la cabecera como en el widget.
 
 ### 🧩 4. Widget Nativo 2x2 (Android & Nothing OS)
 * **Diseño Minimalista y Equilibrado:** Cuadrícula simétrica 2x2 resistente a temas dinámicos del sistema para conservar su estética de cristal ahumado oscuro.
 * **Información en Pantalla de Inicio:**
-  * Nombre de la localidad y temperaturas máxima / mínima del día (`↑28° ↓15°`).
+  * Nombre explícito de barrio y ciudad (`Delicias, Madrid` o `Casa de Campo, Madrid`) y temperaturas máxima / mínima del día (`↑28° ↓15°`).
   * Temperatura actual destacada con tipografía de alto contraste.
   * Icono de condición y descripción del tiempo.
   * Micro-cápsula con **sensación térmica**, **probabilidad de lluvia** y **velocidad del viento**.
 * **Acceso Directo:** Tocar el widget abre inmediatamente la aplicación en pantalla completa.
 
-### ⚙️ 5. Actualización Automática en Segundo Plano (WorkManager)
-* **Independiente de la App:** Consulta directamente la API meteorológica desde el worker nativo de Kotlin (`WeatherUpdateWorker`), manteniendo el widget al día aunque la app esté cerrada.
-* **Eficiencia de Batería:** Restricción estricta de red activa (`NetworkType.CONNECTED`) para no consumir batería cuando el dispositivo esté desconectado.
-* **Persistencia ante Reinicios:** `BootCompletedReceiver` reactiva automáticamente las tareas periódicas tras reiniciar el dispositivo (`RECEIVE_BOOT_COMPLETED`).
+### ⚙️ 5. Actualización Automática y Seguimiento en Segundo Plano
+* **Actualización Dinámica al Moverte (Umbral de 300 Metros):** Mediante `LocationTrackingManager` y `FusedLocationProviderClient`, la aplicación detecta desplazamientos significativos entre barrios (umbral de 300 a 500 metros) aun con la aplicación cerrada.
+* **Refresco Inmediato del Widget:** Al desplazarte de una zona a otra, se encola de inmediato una tarea de WorkManager (`WeatherUpdateWorker`) que consulta las nuevas coordenadas y actualiza el widget en tiempo real sin esperar al ciclo periódico de 1 hora.
+* **Actualización por Cambio Climático:** Forzado automático de actualización de datos si se detecta un cambio notable en el estado meteorológico (despejado a lluvia/tormenta) o una variación térmica brusca (≥ 3 °C).
+* **Independiente del Ciclo de Vida y Persistencia:** `BootCompletedReceiver` reactiva las actualizaciones periódicas y el rastreo de desplazamientos tras reiniciar el dispositivo (`RECEIVE_BOOT_COMPLETED`).
 
 ---
 
@@ -110,8 +113,9 @@ app/src/main/java/com/example/
 En `AndroidManifest.xml` se declaran los siguientes permisos:
 
 * `android.permission.INTERNET`: Necesario para descargar los datos del clima y geocodificación.
-* `android.permission.ACCESS_FINE_LOCATION` y `ACCESS_COARSE_LOCATION`: Detección precisa de la ubicación actual del usuario.
-* `android.permission.RECEIVE_BOOT_COMPLETED`: Reactivación de la sincronización del widget en segundo plano al reiniciar el teléfono.
+* `android.permission.ACCESS_FINE_LOCATION` y `ACCESS_COARSE_LOCATION`: Detección precisa de la ubicación actual del usuario en primer plano.
+* `android.permission.ACCESS_BACKGROUND_LOCATION`: Seguimiento de desplazamientos de 300 a 500 metros entre barrios con la aplicación cerrada para actualizar el widget al instante.
+* `android.permission.RECEIVE_BOOT_COMPLETED`: Reactivación de la sincronización del widget y del seguimiento de ubicación tras reiniciar el teléfono.
 
 ---
 

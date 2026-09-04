@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,6 +48,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,8 +97,10 @@ fun WeatherScreen(
     val searchResults by viewModel.searchResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val isSearchBoxVisible by viewModel.isSearchBoxVisible.collectAsState()
+    val isBackgroundLocationGranted by viewModel.isBackgroundLocationGranted.collectAsState()
+    var showBgPrompt by remember { mutableStateOf(true) }
 
-    // Permission launcher
+    // Foreground Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -101,6 +108,13 @@ fun WeatherScreen(
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         val isGranted = fineGranted || coarseGranted
         viewModel.requestCurrentLocation(isGranted)
+    }
+
+    // Background Permission launcher (Android 10+)
+    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        viewModel.onBackgroundLocationResult(isGranted)
     }
 
     // Determine current weather code & isDay for dynamic background
@@ -279,7 +293,7 @@ fun WeatherScreen(
                             Box(modifier = Modifier.weight(1f)) {
                                 if (searchQuery.isEmpty()) {
                                     Text(
-                                        text = "Buscar ciudad o municipio...",
+                                        text = "Buscar barrio, ciudad o municipio...",
                                         color = Color.White.copy(alpha = 0.75f),
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Medium
@@ -342,6 +356,20 @@ fun WeatherScreen(
                                     }
                                 } else if (searchResults.isNotEmpty()) {
                                     searchResults.forEachIndexed { index, city ->
+                                        val hasBarrio = city.isBarrio && !city.barrio.isNullOrBlank()
+                                        val primaryTitle = if (hasBarrio) city.barrio!! else (city.name ?: "")
+                                        val subtitleParts = buildList {
+                                            if (hasBarrio && !city.name.isNullOrBlank() && !city.name.equals(city.barrio, ignoreCase = true)) {
+                                                add(city.name)
+                                            } else if (!hasBarrio && !city.admin1.isNullOrBlank()) {
+                                                add(city.admin1)
+                                            }
+                                            if (!city.country.isNullOrBlank()) {
+                                                add(city.country)
+                                            }
+                                        }
+                                        val secondarySubtitle = subtitleParts.joinToString(" · ")
+
                                         Column(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -349,16 +377,34 @@ fun WeatherScreen(
                                                 .padding(horizontal = 16.dp, vertical = 10.dp)
                                                 .testTag("search_result_item_$index")
                                         ) {
-                                            Text(
-                                                text = city.name ?: "",
-                                                color = Color.White,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            val sub = listOfNotNull(city.admin1, city.country).joinToString(", ")
-                                            if (sub.isNotBlank()) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
                                                 Text(
-                                                    text = sub,
+                                                    text = primaryTitle,
+                                                    color = Color.White,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                if (hasBarrio) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(Color(0x33FFD54F), RoundedCornerShape(4.dp))
+                                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "Barrio",
+                                                            color = Color(0xFFFFE082),
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            if (secondarySubtitle.isNotBlank()) {
+                                                Text(
+                                                    text = secondarySubtitle,
                                                     color = Color.White.copy(alpha = 0.8f),
                                                     fontSize = 12.sp
                                                 )
@@ -374,13 +420,80 @@ fun WeatherScreen(
                                     }
                                 } else {
                                     Text(
-                                        text = "No se encontraron municipios o ciudades",
+                                        text = "No se encontraron barrios o municipios",
                                         color = Color.White.copy(alpha = 0.8f),
                                         fontSize = 13.sp,
                                         modifier = Modifier.padding(16.dp)
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // Optional background location prompt banner for dynamic neighborhood updates
+            if (showBgPrompt && !isBackgroundLocationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.NearMe,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD54F),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Actualización de barrios al moverte",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Actualiza el widget en tiempo real si te desplazas más de 300m.",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 11.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+                                .clickable {
+                                    backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "Activar",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        IconButton(
+                            onClick = { showBgPrompt = false },
+                            modifier = Modifier
+                                .size(24.dp)
+                                .padding(start = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Cerrar sugerencia",
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 }

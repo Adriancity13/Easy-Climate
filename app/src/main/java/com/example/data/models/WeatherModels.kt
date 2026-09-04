@@ -59,13 +59,108 @@ data class GeocodingCityItem(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val country: String? = null,
-    val admin1: String? = null
+    val admin1: String? = null,
+    val barrio: String? = null,
+    val isBarrio: Boolean = false
 ) {
     val fullDisplayName: String
         get() = buildString {
-            append(name ?: "")
-            if (!admin1.isNullOrBlank()) append(", $admin1")
-            if (!country.isNullOrBlank()) append(", $country")
+            if (!barrio.isNullOrBlank()) {
+                append(barrio)
+                if (!name.isNullOrBlank() && !name.equals(barrio, ignoreCase = true)) {
+                    append(", $name")
+                }
+                if (!country.isNullOrBlank()) append(", $country")
+            } else {
+                append(name ?: "")
+                if (!admin1.isNullOrBlank()) append(", $admin1")
+                if (!country.isNullOrBlank()) append(", $country")
+            }
+        }
+
+    val displayBarrioCity: String
+        get() {
+            return if (!barrio.isNullOrBlank() && !name.isNullOrBlank() && !barrio.equals(name, ignoreCase = true)) {
+                "$barrio, $name"
+            } else if (!barrio.isNullOrBlank()) {
+                barrio
+            } else if (!name.isNullOrBlank()) {
+                if (!admin1.isNullOrBlank() && !admin1.equals(name, ignoreCase = true)) "$name, $admin1" else name
+            } else {
+                "Ubicación"
+            }
+        }
+}
+
+@JsonClass(generateAdapter = true)
+data class NominatimSearchResultItem(
+    val place_id: Long? = null,
+    val lat: String? = null,
+    val lon: String? = null,
+    @Json(name = "display_name") val displayName: String? = null,
+    val name: String? = null,
+    val type: String? = null,
+    val address: NominatimAddress? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class NominatimReverseResponse(
+    val place_id: Long? = null,
+    val lat: String? = null,
+    val lon: String? = null,
+    @Json(name = "display_name") val displayName: String? = null,
+    val name: String? = null,
+    val address: NominatimAddress? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class NominatimAddress(
+    val neighbourhood: String? = null,
+    val quarter: String? = null,
+    val suburb: String? = null,
+    @Json(name = "city_district") val cityDistrict: String? = null,
+    val district: String? = null,
+    val borough: String? = null,
+    val city: String? = null,
+    val town: String? = null,
+    val village: String? = null,
+    val municipality: String? = null,
+    val county: String? = null,
+    val state: String? = null,
+    val country: String? = null
+) {
+    /**
+     * Extracts the most specific barrio/neighbourhood/district name
+     */
+    val barrioName: String?
+        get() = neighbourhood ?: quarter ?: suburb ?: cityDistrict ?: district ?: borough
+
+    /**
+     * Extracts city/locality name
+     */
+    val cityName: String?
+        get() = city ?: town ?: village ?: municipality ?: county
+
+    /**
+     * Combines barrio and city in format "Barrio, Ciudad" (e.g., "Delicias, Madrid" or "Casa de Campo, Madrid")
+     */
+    val displayBarrioAndCity: String
+        get() {
+            val b = barrioName
+            val c = cityName
+            return if (!b.isNullOrBlank() && !c.isNullOrBlank()) {
+                if (!b.equals(c, ignoreCase = true)) {
+                    "$b, $c"
+                } else {
+                    if (!state.isNullOrBlank() && !state.equals(c, ignoreCase = true)) "$c, $state" else c
+                }
+            } else if (!b.isNullOrBlank()) {
+                if (!state.isNullOrBlank() && !state.equals(b, ignoreCase = true)) "$b, $state" else b
+            } else if (!c.isNullOrBlank()) {
+                if (!state.isNullOrBlank() && !state.equals(c, ignoreCase = true)) "$c, $state" else if (!country.isNullOrBlank()) "$c, $country" else c
+            } else {
+                state ?: country ?: "Tu Ubicación"
+            }
         }
 }
 

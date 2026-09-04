@@ -3,6 +3,8 @@ package com.example.ui.viewmodel
 import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
+import android.content.SharedPreferences
+import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.models.CurrentWeatherUI
@@ -11,6 +13,7 @@ import com.example.data.models.GeocodingCityItem
 import com.example.data.models.HourlyItem
 import com.example.data.repository.WeatherRepository
 import com.example.utils.WeatherUtils
+import com.example.widget.LocationTrackingManager
 import com.example.widget.WeatherWidgetProvider
 import com.example.widget.worker.WeatherWorkScheduler
 import com.google.android.gms.location.LocationServices
@@ -56,10 +59,48 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     private val _isSearchBoxVisible = MutableStateFlow(false)
     val isSearchBoxVisible: StateFlow<Boolean> = _isSearchBoxVisible.asStateFlow()
 
+    private val _isBackgroundLocationGranted = MutableStateFlow(
+        LocationTrackingManager.hasBackgroundLocationPermission(application)
+    )
+    val isBackgroundLocationGranted: StateFlow<Boolean> = _isBackgroundLocationGranted.asStateFlow()
+
     private var searchJob: Job? = null
 
+    private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "cached_name" || key == "last_weather_update_time") {
+            val cachedLat = prefs.getString("cached_lat", null)?.toDoubleOrNull()
+            val cachedLon = prefs.getString("cached_lon", null)?.toDoubleOrNull()
+            val cachedName = prefs.getString("cached_name", null)
+            val currentState = _uiState.value
+            if (cachedLat != null && cachedLon != null && currentState is WeatherUIState.Success && currentState.cityName != cachedName) {
+                loadWeather(cachedLat, cachedLon, cachedName)
+            }
+        }
+    }
+
     init {
+        prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
+        checkBackgroundLocationPermission()
         restoreCachedLocationOrStart()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        prefs.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
+    }
+
+    fun checkBackgroundLocationPermission() {
+        _isBackgroundLocationGranted.value = LocationTrackingManager.hasBackgroundLocationPermission(getApplication())
+        if (_isBackgroundLocationGranted.value || LocationTrackingManager.hasLocationPermission(getApplication())) {
+            LocationTrackingManager.startLocationTracking(getApplication())
+        }
+    }
+
+    fun onBackgroundLocationResult(granted: Boolean) {
+        _isBackgroundLocationGranted.value = granted
+        if (granted) {
+            LocationTrackingManager.startLocationTracking(getApplication())
+        }
     }
 
     private fun restoreCachedLocationOrStart() {
@@ -157,7 +198,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     fun selectCity(city: GeocodingCityItem) {
         val lat = city.latitude ?: return
         val lon = city.longitude ?: return
-        val name = city.fullDisplayName
+        val name = city.displayBarrioCity
 
         _isSearchBoxVisible.value = false
         _searchQuery.value = ""
@@ -184,6 +225,9 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             _uiState.value = WeatherUIState.PermissionDenied()
             return
         }
+
+        checkBackgroundLocationPermission()
+        LocationTrackingManager.startLocationTracking(getApplication())
 
         _uiState.value = WeatherUIState.Loading
         try {

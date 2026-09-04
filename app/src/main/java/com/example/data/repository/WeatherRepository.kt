@@ -36,19 +36,67 @@ class WeatherRepository {
     }
 
     suspend fun searchCities(query: String): List<GeocodingCityItem> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<GeocodingCityItem>()
+
+        // 1. Primary: Micro-local Nominatim search (supports barrios, quarters, suburbs, districts, cities)
+        try {
+            val nominatimResults = ApiClient.nominatimApi.searchLocations(query = query)
+            for (item in nominatimResults) {
+                val lat = item.lat?.toDoubleOrNull() ?: continue
+                val lon = item.lon?.toDoubleOrNull() ?: continue
+                val addr = item.address
+
+                val barrio = addr?.barrioName
+                val city = addr?.cityName ?: item.name ?: ""
+                val isBarrio = !barrio.isNullOrBlank() && !barrio.equals(city, ignoreCase = true)
+
+                results.add(
+                    GeocodingCityItem(
+                        id = item.place_id,
+                        name = if (city.isNotBlank()) city else (item.name ?: "Ubicación"),
+                        latitude = lat,
+                        longitude = lon,
+                        country = addr?.country,
+                        admin1 = addr?.state,
+                        barrio = if (isBarrio) barrio else (if (!barrio.isNullOrBlank()) barrio else null),
+                        isBarrio = isBarrio
+                    )
+                )
+            }
+        } catch (_: Exception) {
+            // Fallback to secondary geocoder
+        }
+
+        if (results.isNotEmpty()) {
+            return@withContext results
+        }
+
+        // 2. Secondary Fallback: Open-Meteo geocoding search
         try {
             val res = ApiClient.geocodingApi.searchCity(name = query)
             res.results ?: emptyList()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }
 
     private suspend fun resolveCityName(lat: Double, lon: Double): String {
+        // 1. Primary: Micro-local reverse geocode with Nominatim to extract barrio and city (e.g., "Delicias, Madrid")
+        try {
+            val res = ApiClient.nominatimApi.reverseGeocode(lat, lon)
+            val barrioCity = res.address?.displayBarrioAndCity
+            if (!barrioCity.isNullOrBlank() && barrioCity != "Tu Ubicación") {
+                return barrioCity
+            }
+        } catch (_: Exception) {
+            // Fallback to secondary reverse geocoding
+        }
+
+        // 2. Secondary Fallback: BigDataCloud reverse geocode
         return try {
             val res = ApiClient.reverseGeocodeApi.reverseGeocode(lat, lon)
             res.displayName
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "Tu Ubicación"
         }
     }
