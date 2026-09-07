@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,6 +45,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,7 +64,17 @@ fun HourlyForecastCarousel(
 
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
     var selectedIndex by remember { mutableIntStateOf(0) }
+
+    // Subtle tactile haptic tick as the user scrolls across hourly forecast items
+    var previousScrollIndex by remember { mutableIntStateOf(listState.firstVisibleItemIndex) }
+    LaunchedEffect(listState.firstVisibleItemIndex) {
+        if (listState.firstVisibleItemIndex != previousScrollIndex) {
+            previousScrollIndex = listState.firstVisibleItemIndex
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+    }
 
     // Derive scroll progress for timeline bar
     val totalItems = hourlyItems.size
@@ -114,6 +127,7 @@ fun HourlyForecastCarousel(
                         .border(1.dp, Color(0x66FFFFFF), CircleShape)
                         .clip(CircleShape)
                         .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             coroutineScope.launch {
                                 val target = (listState.firstVisibleItemIndex - 3).coerceAtLeast(0)
                                 listState.animateScrollToItem(target)
@@ -137,6 +151,7 @@ fun HourlyForecastCarousel(
                         .border(1.dp, Color(0x66FFFFFF), CircleShape)
                         .clip(CircleShape)
                         .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             coroutineScope.launch {
                                 val target = (listState.firstVisibleItemIndex + 3).coerceAtMost(hourlyItems.size - 1)
                                 listState.animateScrollToItem(target)
@@ -206,6 +221,7 @@ fun HourlyForecastCarousel(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             selectedIndex = index
                             coroutineScope.launch {
                                 val target = (index - 1).coerceAtLeast(0)

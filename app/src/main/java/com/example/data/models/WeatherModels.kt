@@ -1,5 +1,6 @@
 package com.example.data.models
 
+import androidx.compose.ui.graphics.Color
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
@@ -19,8 +20,12 @@ data class CurrentWeatherData(
     @Json(name = "relative_humidity_2m") val relativeHumidity2m: Int? = null,
     @Json(name = "apparent_temperature") val apparentTemperature: Double? = null,
     @Json(name = "precipitation_probability") val precipitationProbability: Int? = null,
+    @Json(name = "precipitation") val precipitation: Double? = null,
     @Json(name = "weather_code") val weatherCode: Int? = null,
     @Json(name = "wind_speed_10m") val windSpeed10m: Double? = null,
+    @Json(name = "wind_gusts_10m") val windGusts10m: Double? = null,
+    @Json(name = "uv_index") val uvIndex: Double? = null,
+    @Json(name = "cloud_cover") val cloudCover: Int? = null,
     @Json(name = "is_day") val isDay: Int? = 1
 )
 
@@ -28,10 +33,16 @@ data class CurrentWeatherData(
 data class HourlyWeatherData(
     val time: List<String>? = null,
     @Json(name = "temperature_2m") val temperature2m: List<Double>? = null,
+    @Json(name = "relative_humidity_2m") val relativeHumidity2m: List<Int>? = null,
+    @Json(name = "apparent_temperature") val apparentTemperature: List<Double>? = null,
     @Json(name = "weather_code") val weatherCode: List<Int>? = null,
     @Json(name = "is_day") val isDay: List<Int>? = null,
     @Json(name = "precipitation_probability") val precipitationProbability: List<Int>? = null,
-    @Json(name = "wind_speed_10m") val windSpeed10m: List<Double>? = null
+    @Json(name = "precipitation") val precipitation: List<Double>? = null,
+    @Json(name = "wind_speed_10m") val windSpeed10m: List<Double>? = null,
+    @Json(name = "wind_gusts_10m") val windGusts10m: List<Double>? = null,
+    @Json(name = "uv_index") val uvIndex: List<Double>? = null,
+    @Json(name = "cloud_cover") val cloudCover: List<Int>? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -41,8 +52,10 @@ data class DailyWeatherData(
     @Json(name = "temperature_2m_max") val temperature2mMax: List<Double>? = null,
     @Json(name = "temperature_2m_min") val temperature2mMin: List<Double>? = null,
     @Json(name = "precipitation_probability_max") val precipitationProbabilityMax: List<Int>? = null,
+    @Json(name = "precipitation_sum") val precipitationSum: List<Double>? = null,
     @Json(name = "wind_speed_10m_max") val windSpeed10mMax: List<Double>? = null,
     @Json(name = "apparent_temperature_max") val apparentTemperatureMax: List<Double>? = null,
+    @Json(name = "uv_index_max") val uvIndexMax: List<Double>? = null,
     val sunrise: List<String>? = null,
     val sunset: List<String>? = null
 )
@@ -188,6 +201,42 @@ data class ReverseGeocodeResponse(
         }
 }
 
+// Air Quality API Models (Open-Meteo Air Quality)
+@JsonClass(generateAdapter = true)
+data class AirQualityResponse(
+    val current: CurrentAirQualityData? = null,
+    val hourly: HourlyAirQualityData? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class CurrentAirQualityData(
+    val time: String? = null,
+    @Json(name = "european_aqi") val europeanAqi: Int? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class HourlyAirQualityData(
+    val time: List<String>? = null,
+    @Json(name = "european_aqi") val europeanAqi: List<Int>? = null
+)
+
+enum class AirQualityCategory(
+    val label: String,
+    val color: Color
+) {
+    BUENA("Buena", Color(0xFF34D399)),
+    MODERADA("Moderada", Color(0xFFFBBF24)),
+    DEFICIENTE("Deficiente", Color(0xFFF87171))
+}
+
+data class AirQualityUI(
+    val aqi: Int,
+    val category: AirQualityCategory
+) {
+    val statusText: String
+        get() = "Calidad del aire: ${category.label}"
+}
+
 // UI State Models
 data class AdviceModifier(
     val icon: String,
@@ -197,7 +246,8 @@ data class AdviceModifier(
 
 data class ClothingAdvice(
     val baseAdvice: String,
-    val modifiers: List<AdviceModifier> = emptyList()
+    val modifiers: List<AdviceModifier> = emptyList(),
+    val timeSlotAlert: String? = null
 )
 
 data class HourlyItem(
@@ -206,7 +256,14 @@ data class HourlyItem(
     val temp: Int,
     val weatherCode: Int,
     val isDay: Boolean,
-    val rainProb: Int
+    val rainProb: Int,
+    val apparentTemp: Double? = null,
+    val humidity: Int? = null,
+    val windSpeed: Double? = null,
+    val windGusts: Double? = null,
+    val precipitation: Double? = null,
+    val uvIndex: Double? = null,
+    val cloudCover: Int? = null
 )
 
 data class DailyItem(
@@ -224,7 +281,9 @@ data class DailyItem(
     val sunset: String = "--:--",
     val daylightDuration: String = "",
     val advice: ClothingAdvice,
-    val hourlyList: List<HourlyItem>
+    val hourlyList: List<HourlyItem>,
+    val uvIndexMax: Double? = null,
+    val precipitationSum: Double? = null
 )
 
 data class CurrentWeatherUI(
@@ -240,7 +299,9 @@ data class CurrentWeatherUI(
     val sunrise: String = "--:--",
     val sunset: String = "--:--",
     val daylightDuration: String = "",
-    val advice: ClothingAdvice
+    val advice: ClothingAdvice,
+    val airQuality: AirQualityUI? = null,
+    val recommendation: com.example.engine.ClothingRecommendation? = null
 )
 
 data class LocationCache(

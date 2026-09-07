@@ -57,7 +57,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.data.models.CurrentWeatherUI
 import com.example.ui.components.AtmosphericWeatherBackground
+import com.example.ui.components.BioclimaticRecommendationCard
 import com.example.ui.components.DailyForecastAccordionList
 import com.example.ui.components.GlassCard
 import com.example.ui.components.GlassPill
@@ -92,6 +95,7 @@ fun WeatherScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
@@ -206,6 +210,7 @@ fun WeatherScreen(
                             .border(1.dp, Color(0x66FFFFFF), CircleShape)
                             .clip(CircleShape)
                             .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 val hasFine = ContextCompat.checkSelfPermission(
                                     context,
                                     Manifest.permission.ACCESS_FINE_LOCATION
@@ -245,6 +250,7 @@ fun WeatherScreen(
                             .border(1.dp, Color(0x66FFFFFF), CircleShape)
                             .clip(CircleShape)
                             .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 viewModel.toggleSearchBox()
                             }
                             .testTag("search_toggle_btn"),
@@ -373,7 +379,10 @@ fun WeatherScreen(
                                         Column(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clickable { viewModel.selectCity(city) }
+                                                .clickable {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    viewModel.selectCity(city)
+                                                }
                                                 .padding(horizontal = 16.dp, vertical = 10.dp)
                                                 .testTag("search_result_item_$index")
                                         ) {
@@ -616,78 +625,112 @@ private fun MainWeatherContent(
                     modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
                 )
 
-                // Recommendation Card (Estrategia de vestimenta & salud)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(RecommendationCardBg, RoundedCornerShape(18.dp))
-                        .border(1.dp, RecommendationCardBorder, RoundedCornerShape(18.dp))
-                        .clip(RoundedCornerShape(18.dp))
-                        .padding(14.dp)
-                        .testTag("clothing_recommendation_card")
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 2.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.AutoAwesome,
-                                contentDescription = null,
-                                tint = Color(0xFFFDE047),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "ESTRATEGIA DE VESTIMENTA & SALUD",
-                                color = Color(0xFFFDE68A),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
+                // Recommendation Card (Estrategia de vestimenta & salud con modelo bioclimático)
+                if (weatherUI.recommendation != null) {
+                    BioclimaticRecommendationCard(
+                        recommendation = weatherUI.recommendation,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(RecommendationCardBg, RoundedCornerShape(18.dp))
+                            .border(1.dp, RecommendationCardBorder, RoundedCornerShape(18.dp))
+                            .clip(RoundedCornerShape(18.dp))
+                            .padding(14.dp)
+                            .testTag("clothing_recommendation_card")
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFDE047),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "ESTRATEGIA DE VESTIMENTA & SALUD",
+                                    color = Color(0xFFFDE68A),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
 
-                        Text(
-                            text = weatherUI.advice.baseAdvice,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            lineHeight = 17.sp
-                        )
-
-                        // Modifiers List
-                        if (weatherUI.advice.modifiers.isNotEmpty()) {
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                weatherUI.advice.modifiers.forEach { mod ->
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(RecommendationPillBg, RoundedCornerShape(10.dp))
-                                            .border(1.dp, RecommendationPillBorder, RoundedCornerShape(10.dp))
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .padding(8.dp)
+                            // Micro-cápsula Glassmorphism de Aviso Inteligente por Franjas Horarias
+                            weatherUI.advice.timeSlotAlert?.let { alert ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0x400F172A), RoundedCornerShape(12.dp))
+                                        .border(1.dp, Color(0x70FDE047), RoundedCornerShape(12.dp))
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 10.dp, vertical = 7.dp)
+                                        .testTag("timeslot_clothing_alert_capsule")
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.Top,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        Text(text = "⏱️", fontSize = 13.sp)
+                                        Text(
+                                            text = alert,
+                                            color = Color(0xFFFEF08A),
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            lineHeight = 15.sp
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = weatherUI.advice.baseAdvice,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                lineHeight = 17.sp
+                            )
+
+                            // Modifiers List
+                            if (weatherUI.advice.modifiers.isNotEmpty()) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    weatherUI.advice.modifiers.forEach { mod ->
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(RecommendationPillBg, RoundedCornerShape(10.dp))
+                                                .border(1.dp, RecommendationPillBorder, RoundedCornerShape(10.dp))
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .padding(8.dp)
                                         ) {
-                                            Text(text = mod.icon, fontSize = 14.sp)
-                                            Column {
-                                                Text(
-                                                    text = "${mod.title}:",
-                                                    color = Color(0xFFFDE047),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Text(
-                                                    text = mod.text,
-                                                    color = Color.White.copy(alpha = 0.95f),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Normal,
-                                                    lineHeight = 15.sp
-                                                )
+                                            Row(
+                                                verticalAlignment = Alignment.Top,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(text = mod.icon, fontSize = 14.sp)
+                                                Column {
+                                                    Text(
+                                                        text = "${mod.title}:",
+                                                        color = Color(0xFFFDE047),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = mod.text,
+                                                        color = Color.White.copy(alpha = 0.95f),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Normal,
+                                                        lineHeight = 15.sp
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -783,6 +826,37 @@ private fun MainWeatherContent(
                         text = "Humedad",
                         color = Color.White.copy(alpha = 0.9f),
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        // 2.3 Indicador Mínimo de Calidad del Aire (AQI Europeo)
+        weatherUI.airQuality?.let { aqi ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0x350F172A), RoundedCornerShape(999.dp))
+                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(999.dp))
+                    .clip(RoundedCornerShape(999.dp))
+                    .padding(horizontal = 14.dp, vertical = 7.dp)
+                    .testTag("air_quality_pill"),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(9.dp)
+                            .background(aqi.category.color, CircleShape)
+                    )
+                    Text(
+                        text = "Calidad del aire: ${aqi.category.label}",
+                        color = Color.White.copy(alpha = 0.95f),
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }

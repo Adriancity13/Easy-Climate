@@ -40,6 +40,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,6 +58,7 @@ fun DailyForecastAccordionList(
 ) {
     if (dailyItems.isEmpty()) return
 
+    val haptic = LocalHapticFeedback.current
     var expandedIndex by remember { mutableStateOf<Int?>(null) }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -97,6 +100,7 @@ fun DailyForecastAccordionList(
                         index = index,
                         isExpanded = isExpanded,
                         onToggle = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             expandedIndex = if (isExpanded) null else index
                         }
                     )

@@ -12,17 +12,21 @@ import com.example.data.models.DailyItem
 import com.example.data.models.GeocodingCityItem
 import com.example.data.models.HourlyItem
 import com.example.data.repository.WeatherRepository
+import com.example.engine.BioclimaticClothingEngine
+import com.example.engine.ClothingRecommendation
 import com.example.utils.WeatherUtils
 import com.example.widget.LocationTrackingManager
 import com.example.widget.WeatherWidgetProvider
 import com.example.widget.worker.WeatherWorkScheduler
 import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed interface WeatherUIState {
     data object Loading : WeatherUIState
@@ -122,6 +126,33 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             try {
                 // Save cache
                 val (cityName, currentWeather, forecast) = repository.fetchWeather(lat, lon, knownCityName)
+                val todayForecast = forecast.second.firstOrNull()
+
+                // Cálculo reactivo y asíncrono con Corrutinas del motor bioclimático local
+                val bioclimaticRecommendation = withContext(Dispatchers.Default) {
+                    BioclimaticClothingEngine.calculate(
+                        currentTemp = currentWeather.temp.toDouble(),
+                        currentHumidity = currentWeather.humidity,
+                        currentWindSpeed = currentWeather.windSpeed.toDouble(),
+                        currentWindGusts = forecast.first.firstOrNull()?.windGusts ?: (currentWeather.windSpeed.toDouble() * 1.35),
+                        currentApparentTemp = currentWeather.feelsLike,
+                        currentRainProb = currentWeather.rainProb,
+                        currentPrecipitation = forecast.first.firstOrNull()?.precipitation ?: 0.0,
+                        currentUvIndex = todayForecast?.uvIndexMax,
+                        currentCloudCover = forecast.first.firstOrNull()?.cloudCover,
+                        isDay = currentWeather.isDay,
+                        hourlyItems = forecast.first,
+                        dailyMaxUv = todayForecast?.uvIndexMax,
+                        dailyPrecipSum = todayForecast?.precipitationSum,
+                        sunsetTime = currentWeather.sunset
+                    )
+                }
+
+                val finalCurrentWeather = currentWeather.copy(
+                    recommendation = bioclimaticRecommendation,
+                    advice = bioclimaticRecommendation.toClothingAdvice()
+                )
+
                 prefs.edit()
                     .putString("cached_lat", lat.toString())
                     .putString("cached_lon", lon.toString())
@@ -130,32 +161,31 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
                 _uiState.value = WeatherUIState.Success(
                     cityName = cityName,
-                    currentWeather = currentWeather,
+                    currentWeather = finalCurrentWeather,
                     hourlyForecast = forecast.first,
                     dailyForecast = forecast.second,
-                    weatherCode = currentWeather.weatherCode,
-                    isDay = currentWeather.isDay,
+                    weatherCode = finalCurrentWeather.weatherCode,
+                    isDay = finalCurrentWeather.isDay,
                     formattedDate = WeatherUtils.getFormattedCurrentDate()
                 )
 
                 // Sync with Home Screen Widget instantly
                 try {
-                    val todayForecast = forecast.second.firstOrNull()
-                    val tempMax = todayForecast?.maxTemp ?: currentWeather.temp
-                    val tempMin = todayForecast?.minTemp ?: currentWeather.temp
+                    val tempMax = todayForecast?.maxTemp ?: finalCurrentWeather.temp
+                    val tempMin = todayForecast?.minTemp ?: finalCurrentWeather.temp
 
                     WeatherWidgetProvider.updateAllWidgets(
                         context = getApplication(),
                         cityName = cityName,
-                        temp = currentWeather.temp,
+                        temp = finalCurrentWeather.temp,
                         tempMax = tempMax,
                         tempMin = tempMin,
-                        description = currentWeather.conditionDesc,
-                        weatherCode = currentWeather.weatherCode,
-                        isDay = currentWeather.isDay,
-                        feelsLike = kotlin.math.round(currentWeather.feelsLike).toInt(),
-                        rainProb = currentWeather.rainProb,
-                        windSpeed = currentWeather.windSpeed
+                        description = finalCurrentWeather.conditionDesc,
+                        weatherCode = finalCurrentWeather.weatherCode,
+                        isDay = finalCurrentWeather.isDay,
+                        feelsLike = kotlin.math.round(finalCurrentWeather.feelsLike).toInt(),
+                        rainProb = finalCurrentWeather.rainProb,
+                        windSpeed = finalCurrentWeather.windSpeed
                     )
 
                     // Ensure background periodic worker is scheduled

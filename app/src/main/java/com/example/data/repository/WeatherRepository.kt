@@ -1,14 +1,19 @@
 package com.example.data.repository
 
 import com.example.data.api.ApiClient
+import com.example.data.models.AirQualityCategory
+import com.example.data.models.AirQualityResponse
+import com.example.data.models.AirQualityUI
 import com.example.data.models.ClothingAdvice
 import com.example.data.models.CurrentWeatherUI
 import com.example.data.models.DailyItem
 import com.example.data.models.GeocodingCityItem
 import com.example.data.models.HourlyItem
 import com.example.data.models.OpenMeteoWeatherResponse
+import com.example.engine.BioclimaticClothingEngine
 import com.example.utils.WeatherUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -22,15 +27,33 @@ class WeatherRepository {
         longitude: Double,
         knownCityName: String? = null
     ): Triple<String, CurrentWeatherUI, Pair<List<HourlyItem>, List<DailyItem>>> = withContext(Dispatchers.IO) {
-        val cityName = if (!knownCityName.isNullOrBlank()) {
-            knownCityName
-        } else {
-            resolveCityName(latitude, longitude)
+        val cityNameDeferred = async {
+            if (!knownCityName.isNullOrBlank()) {
+                knownCityName
+            } else {
+                resolveCityName(latitude, longitude)
+            }
         }
 
-        val response = ApiClient.openMeteoApi.getForecast(latitude, longitude)
-        val currentWeatherUI = processCurrentWeather(response)
+        val forecastDeferred = async {
+            ApiClient.openMeteoApi.getForecast(latitude, longitude)
+        }
+
+        val airQualityDeferred = async {
+            try {
+                ApiClient.airQualityApi.getAirQuality(latitude, longitude)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        val cityName = cityNameDeferred.await()
+        val response = forecastDeferred.await()
+        val aqResponse = airQualityDeferred.await()
+
+        val airQualityUI = processAirQuality(aqResponse)
         val hourlyAndDaily = processForecast(response)
+        val currentWeatherUI = processCurrentWeather(response, hourlyAndDaily.first, airQualityUI)
 
         Triple(cityName, currentWeatherUI, hourlyAndDaily)
     }
@@ -101,7 +124,26 @@ class WeatherRepository {
         }
     }
 
-    private fun processCurrentWeather(response: OpenMeteoWeatherResponse): CurrentWeatherUI {
+    private fun processAirQuality(response: AirQualityResponse?): AirQualityUI? {
+        if (response == null) return null
+        val aqiValue = response.current?.europeanAqi
+            ?: response.hourly?.europeanAqi?.firstOrNull()
+            ?: return null
+
+        val category = when {
+            aqiValue <= 20 -> AirQualityCategory.BUENA
+            aqiValue <= 40 -> AirQualityCategory.MODERADA
+            else -> AirQualityCategory.DEFICIENTE
+        }
+
+        return AirQualityUI(aqi = aqiValue, category = category)
+    }
+
+    private fun processCurrentWeather(
+        response: OpenMeteoWeatherResponse,
+        hourlyItems: List<HourlyItem> = emptyList(),
+        airQualityUI: AirQualityUI? = null
+    ): CurrentWeatherUI {
         val current = response.current ?: throw IllegalStateException("Current weather data is missing")
         val temp = current.temperature2m?.roundToInt() ?: 0
         val feelsLike = current.apparentTemperature ?: temp.toDouble()
@@ -112,29 +154,33 @@ class WeatherRepository {
         val wCode = current.weatherCode ?: 0
         val isDay = (current.isDay ?: 1) == 1
 
-        var tempDropNight = 0
-        val dailyMin = response.daily?.temperature2mMin?.firstOrNull()
-        if (dailyMin != null) {
-            tempDropNight = maxOf(0, temp - dailyMin.roundToInt())
-        }
-
-        val advice = WeatherUtils.generateClothingAdvice(
-            temp = temp,
-            feels = feelsLikeInt,
-            hum = hum,
-            wind = wind,
-            rainProb = rain,
-            tempDropNight = tempDropNight
-        )
-
-        val desc = WeatherUtils.getDescription(wCode)
-        val iconType = WeatherUtils.getIconType(wCode, isDay)
-
         val rawSunrise = response.daily?.sunrise?.firstOrNull()
         val rawSunset = response.daily?.sunset?.firstOrNull()
         val formattedSunrise = WeatherUtils.formatSunTime(rawSunrise)
         val formattedSunset = WeatherUtils.formatSunTime(rawSunset)
         val daylightDuration = WeatherUtils.calculateDaylightDuration(rawSunrise, rawSunset)
+
+        val bioclimaticRec = BioclimaticClothingEngine.calculate(
+            currentTemp = current.temperature2m ?: temp.toDouble(),
+            currentHumidity = hum,
+            currentWindSpeed = current.windSpeed10m ?: wind.toDouble(),
+            currentWindGusts = current.windGusts10m,
+            currentApparentTemp = feelsLike,
+            currentRainProb = rain,
+            currentPrecipitation = current.precipitation,
+            currentUvIndex = current.uvIndex ?: response.daily?.uvIndexMax?.firstOrNull(),
+            currentCloudCover = current.cloudCover,
+            isDay = isDay,
+            hourlyItems = hourlyItems,
+            dailyMaxUv = response.daily?.uvIndexMax?.firstOrNull(),
+            dailyPrecipSum = response.daily?.precipitationSum?.firstOrNull(),
+            sunsetTime = formattedSunset
+        )
+
+        val finalAdvice = bioclimaticRec.toClothingAdvice()
+
+        val desc = WeatherUtils.getDescription(wCode)
+        val iconType = WeatherUtils.getIconType(wCode, isDay)
 
         return CurrentWeatherUI(
             temp = temp,
@@ -149,7 +195,9 @@ class WeatherRepository {
             sunrise = formattedSunrise,
             sunset = formattedSunset,
             daylightDuration = daylightDuration,
-            advice = advice
+            advice = finalAdvice,
+            airQuality = airQualityUI,
+            recommendation = bioclimaticRec
         )
     }
 
@@ -172,6 +220,13 @@ class WeatherRepository {
                     val hCode = hourly.weatherCode.getOrNull(i) ?: 0
                     val isDayInt = hourly.isDay?.getOrNull(i) ?: 1
                     val hRain = hourly.precipitationProbability?.getOrNull(i) ?: 0
+                    val hApparent = hourly.apparentTemperature?.getOrNull(i)
+                    val hHumidity = hourly.relativeHumidity2m?.getOrNull(i)
+                    val hWindSpeed = hourly.windSpeed10m?.getOrNull(i)
+                    val hWindGusts = hourly.windGusts10m?.getOrNull(i)
+                    val hPrecip = hourly.precipitation?.getOrNull(i)
+                    val hUv = hourly.uvIndex?.getOrNull(i)
+                    val hCloud = hourly.cloudCover?.getOrNull(i)
 
                     val label = if (count == 0) "Ahora" else {
                         try {
@@ -189,7 +244,14 @@ class WeatherRepository {
                             temp = hTemp,
                             weatherCode = hCode,
                             isDay = isDayInt == 1,
-                            rainProb = hRain
+                            rainProb = hRain,
+                            apparentTemp = hApparent,
+                            humidity = hHumidity,
+                            windSpeed = hWindSpeed,
+                            windGusts = hWindGusts,
+                            precipitation = hPrecip,
+                            uvIndex = hUv,
+                            cloudCover = hCloud
                         )
                     )
                     count++
@@ -257,7 +319,14 @@ class WeatherRepository {
                                     temp = hTemp,
                                     weatherCode = hCode,
                                     isDay = isDayInt == 1,
-                                    rainProb = hRain
+                                    rainProb = hRain,
+                                    apparentTemp = hourly.apparentTemperature?.getOrNull(h),
+                                    humidity = hourly.relativeHumidity2m?.getOrNull(h),
+                                    windSpeed = hourly.windSpeed10m?.getOrNull(h),
+                                    windGusts = hourly.windGusts10m?.getOrNull(h),
+                                    precipitation = hourly.precipitation?.getOrNull(h),
+                                    uvIndex = hourly.uvIndex?.getOrNull(h),
+                                    cloudCover = hourly.cloudCover?.getOrNull(h)
                                 )
                             )
                         }
@@ -280,7 +349,9 @@ class WeatherRepository {
                         sunset = daySunset,
                         daylightDuration = dayDuration,
                         advice = dayAdvice,
-                        hourlyList = dayHourlyList
+                        hourlyList = dayHourlyList,
+                        uvIndexMax = daily.uvIndexMax?.getOrNull(i),
+                        precipitationSum = daily.precipitationSum?.getOrNull(i)
                     )
                 )
             }

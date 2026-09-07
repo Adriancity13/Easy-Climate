@@ -3,6 +3,7 @@ package com.example.utils
 import androidx.compose.ui.graphics.Color
 import com.example.data.models.AdviceModifier
 import com.example.data.models.ClothingAdvice
+import com.example.data.models.HourlyItem
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -350,6 +351,81 @@ object WeatherUtils {
         }
 
         return ClothingAdvice(baseAdvice = baseAdvice, modifiers = modifiers)
+    }
+
+    /**
+     * Generates context-aware clothing recommendations based on upcoming 12-hour thermal oscillation
+     * and precipitation probability.
+     */
+    fun generateTimeSlotClothingAlert(
+        currentTemp: Int,
+        nextHours: List<HourlyItem>
+    ): String? {
+        if (nextHours.isEmpty()) return null
+        val items = nextHours.take(12)
+
+        fun formatHour(item: HourlyItem): String {
+            return if (item.label.contains(":")) {
+                "${item.label} h"
+            } else {
+                try {
+                    val h = item.rawTime.substringAfter("T").substringBefore(":")
+                    "$h:00 h"
+                } catch (_: Exception) {
+                    item.label
+                }
+            }
+        }
+
+        fun extractHourInt(item: HourlyItem): Int {
+            return try {
+                item.rawTime.substringAfter("T").substringBefore(":").toInt()
+            } catch (_: Exception) {
+                -1
+            }
+        }
+
+        // 1. Rain Alert Priority: check if rain starts within the next 12 hours
+        val rainItem = items.firstOrNull { it.rainProb >= 40 || it.weatherCode in listOf(51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99) }
+        if (rainItem != null) {
+            val hourStr = if (rainItem == items.first() && rainItem.label == "Ahora") "las próximas horas" else "las ${formatHour(rainItem)}"
+            return "Lleva paraguas o chubasquero: probabilidad de lluvia (${rainItem.rainProb}%) a partir de $hourStr."
+        }
+
+        // 2. Morning cool/cold -> Afternoon warm
+        val firstHourInt = extractHourInt(items.first())
+        val isMorning = firstHourInt in 6..12 || (items.first().label == "Ahora" && currentTemp <= 15)
+        val afternoonItem = items.filter { extractHourInt(it) in 13..17 }.maxByOrNull { it.temp }
+        if (isMorning && afternoonItem != null && afternoonItem.temp >= 19 && (afternoonItem.temp - currentTemp) >= 5) {
+            return "Por la mañana (${currentTemp}°C) necesitarás abrigo, pero a partir de las ${formatHour(afternoonItem)} (${afternoonItem.temp}°C) te sobrará."
+        }
+
+        // 3. Evening/Night temperature drop
+        val eveningDropItem = items.filter { extractHourInt(it) >= 18 || extractHourInt(it) < 4 }
+            .firstOrNull { it.temp <= 14 && (currentTemp - it.temp) >= 4 }
+        if (eveningDropItem != null && currentTemp >= 16) {
+            return "Lleva chaqueta fina: la temperatura caerá a ${eveningDropItem.temp}°C a partir de las ${formatHour(eveningDropItem)}."
+        }
+
+        // 4. Sharp general drop in the next 12 hours
+        val minTempItem = items.minByOrNull { it.temp }
+        if (minTempItem != null && (currentTemp - minTempItem.temp) >= 6) {
+            return "Precaución con la bajada térmica: caerá a ${minTempItem.temp}°C a partir de las ${formatHour(minTempItem)}."
+        }
+
+        // 5. Significant heating up in the coming hours
+        val maxTempItem = items.maxByOrNull { it.temp }
+        if (maxTempItem != null && (maxTempItem.temp - currentTemp) >= 6 && maxTempItem.temp >= 24) {
+            return "Subida térmica notable: alcanzará ${maxTempItem.temp}°C hacia las ${formatHour(maxTempItem)}."
+        }
+
+        // 6. Cold plateau (all hours cold)
+        if (items.all { it.temp <= 10 }) {
+            val minT = minTempItem?.temp ?: currentTemp
+            return "Frío continuo (mín ${minT}°C): mantén el abrigo y viste por capas en todo momento."
+        }
+
+        return null
     }
 
     fun getFormattedCurrentDate(): String {
