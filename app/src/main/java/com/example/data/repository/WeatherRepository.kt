@@ -34,6 +34,10 @@ class WeatherRepository {
         knownCityName: String? = null,
         skipAi: Boolean = false
     ): Triple<String, CurrentWeatherUI, Pair<List<HourlyItem>, List<DailyItem>>> = withContext(Dispatchers.IO) {
+        if (com.example.utils.DevToolsTelemetry.cacheMetrics.value.isSimulatedOffline) {
+            throw java.io.IOException("Modo Offline Simulado: Conexión bloqueada por DevTools.")
+        }
+
         val cityNameDeferred = async {
             if (!knownCityName.isNullOrBlank()) {
                 knownCityName
@@ -42,8 +46,12 @@ class WeatherRepository {
             }
         }
 
+        val t0 = System.currentTimeMillis()
         val forecastDeferred = async {
-            ApiClient.openMeteoApi.getForecast(latitude, longitude)
+            val res = ApiClient.openMeteoApi.getForecast(latitude, longitude)
+            val latency = System.currentTimeMillis() - t0
+            com.example.utils.DevToolsTelemetry.recordOpenMeteoLatency(latency)
+            res
         }
 
         val airQualityDeferred = async {
@@ -54,13 +62,33 @@ class WeatherRepository {
             }
         }
 
+        val microclimateDeferred = async {
+            try {
+                if (knownCityName.isNullOrBlank()) {
+                    com.example.engine.MicroclimateAdjuster.resolveGpsMicroclimate(latitude, longitude)
+                } else {
+                    com.example.engine.MicroclimateAdjuster.resolveSearchMicroclimate(knownCityName, latitude, longitude)
+                }
+            } catch (_: Exception) {
+                com.example.engine.MicroclimateContext()
+            }
+        }
+
         val cityName = cityNameDeferred.await()
         val response = forecastDeferred.await()
         val aqResponse = airQualityDeferred.await()
+        val microclimateContext = microclimateDeferred.await()
 
         val airQualityUI = processAirQuality(aqResponse)
         val hourlyAndDaily = processForecast(response)
-        val currentWeatherUI = processCurrentWeather(cityName, response, hourlyAndDaily.first, airQualityUI, skipAi = skipAi)
+        val currentWeatherUI = processCurrentWeather(
+            cityName = cityName,
+            response = response,
+            hourlyItems = hourlyAndDaily.first,
+            airQualityUI = airQualityUI,
+            skipAi = skipAi,
+            microclimateContext = microclimateContext
+        )
 
         Triple(cityName, currentWeatherUI, hourlyAndDaily)
     }
@@ -151,13 +179,30 @@ class WeatherRepository {
         response: OpenMeteoWeatherResponse,
         hourlyItems: List<HourlyItem> = emptyList(),
         airQualityUI: AirQualityUI? = null,
-        skipAi: Boolean = false
+        skipAi: Boolean = false,
+        microclimateContext: com.example.engine.MicroclimateContext = com.example.engine.MicroclimateContext()
     ): CurrentWeatherUI = coroutineScope {
         val current = response.current ?: throw IllegalStateException("Current weather data is missing")
-        val temp = current.temperature2m?.roundToInt() ?: 0
-        val feelsLike = current.apparentTemperature ?: temp.toDouble()
-        val hum = current.relativeHumidity2m ?: 0
-        val wind = current.windSpeed10m?.roundToInt() ?: 0
+        val rawTemp = current.temperature2m ?: 0.0
+        val rawFeelsLike = current.apparentTemperature ?: rawTemp
+        val rawHum = current.relativeHumidity2m ?: 0
+        val rawWind = current.windSpeed10m ?: 0.0
+
+        // Ajuste microclimático urbano (Nominatim OSM)
+        val adjusted = com.example.engine.MicroclimateAdjuster.applyAdjustment(
+            rawTemp = rawTemp,
+            rawHumidity = rawHum,
+            rawWindSpeed = rawWind,
+            context = microclimateContext
+        )
+
+        val workingTemp = adjusted.temperature
+        val workingHum = adjusted.humidity
+        val workingWind = adjusted.windSpeed
+        val temp = workingTemp.roundToInt()
+        val feelsLike = rawFeelsLike + microclimateContext.tempDelta
+        val hum = workingHum
+        val wind = workingWind.roundToInt()
         val rain = current.precipitationProbability ?: 0
         val wCode = current.weatherCode ?: 0
         val isDay = (current.isDay ?: 1) == 1
@@ -170,9 +215,9 @@ class WeatherRepository {
 
         // 1. Módulo Matemático Bioclimático Local (RAM < 0.1 ms)
         val physicalIndicators = BioclimaticMathEngine.calculateIndicators(
-            temp = current.temperature2m ?: temp.toDouble(),
+            temp = workingTemp,
             humidity = hum,
-            windSpeed = current.windSpeed10m ?: wind.toDouble(),
+            windSpeed = workingWind,
             cloudCover = current.cloudCover ?: 40,
             uvIndex = current.uvIndex ?: response.daily?.uvIndexMax?.firstOrNull() ?: 3.0,
             isDay = isDay,
@@ -184,10 +229,10 @@ class WeatherRepository {
         // 2. Lanzamiento Simultáneo en Paralelo (Groq Llama 3.1 8B Instant + Fallback Kotlin)
         val localDeferred = async(Dispatchers.Default) {
             BioclimaticClothingEngine.calculate(
-                currentTemp = current.temperature2m ?: temp.toDouble(),
+                currentTemp = workingTemp,
                 currentHumidity = hum,
-                currentWindSpeed = current.windSpeed10m ?: wind.toDouble(),
-                currentWindGusts = current.windGusts10m,
+                currentWindSpeed = workingWind,
+                currentWindGusts = current.windGusts10m?.let { it * microclimateContext.windFactor },
                 currentApparentTemp = feelsLike,
                 currentRainProb = rain,
                 currentPrecipitation = current.precipitation,
@@ -211,12 +256,13 @@ class WeatherRepository {
                         try {
                             GroqBioclimaticAdvisor.getBioclimaticRecommendation(
                                 cityName = cityName,
-                                temp = current.temperature2m ?: temp.toDouble(),
+                                temp = workingTemp,
                                 apparentTemp = feelsLike,
                                 humidity = hum,
-                                windSpeed = current.windSpeed10m ?: wind.toDouble(),
+                                windSpeed = workingWind,
                                 indicators = physicalIndicators,
-                                sunsetTime = formattedSunset
+                                sunsetTime = formattedSunset,
+                                microclimateSummary = microclimateContext.summary
                             )
                         } catch (e: Exception) {
                             Log.e("GroqAPI", "Error en llamada:", e)
@@ -242,6 +288,7 @@ class WeatherRepository {
                 Log.d("GroqAPI", "Modo Widget/Background activo: CERO llamadas a Groq. Motor Local ejecutado 100% en memoria.")
             } else {
                 Log.w("GroqAPI", "Fallback activado: utilizando recomendación de Motor Local")
+                com.example.utils.DevToolsTelemetry.recordFallback("Groq API no respondió en 2.5s o devolvió error")
             }
             localRec.copy(source = RecommendationSource.LOCAL_ENGINE)
         }

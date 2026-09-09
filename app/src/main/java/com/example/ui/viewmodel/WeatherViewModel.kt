@@ -28,6 +28,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import com.example.utils.ClimateSimulationConfig
+import com.example.utils.DevToolsTelemetry
+import com.example.engine.BioclimaticMathEngine
+import kotlin.math.roundToInt
+
 sealed interface WeatherUIState {
     data object Loading : WeatherUIState
     data class Success(
@@ -69,6 +74,8 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     val isBackgroundLocationGranted: StateFlow<Boolean> = _isBackgroundLocationGranted.asStateFlow()
 
     private var searchJob: Job? = null
+    private var currentGpsLat: Double? = null
+    private var currentGpsLon: Double? = null
 
     private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "cached_name" || key == "last_weather_update_time") {
@@ -157,7 +164,19 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                     .putString("cached_lat", lat.toString())
                     .putString("cached_lon", lon.toString())
                     .putString("cached_name", cityName)
+                    .putInt("cached_temp", finalCurrentWeather.temp)
                     .apply()
+
+                DevToolsTelemetry.updateCacheMetrics(
+                    lastRefreshMs = System.currentTimeMillis(),
+                    cachedLat = lat,
+                    cachedLon = lon,
+                    cachedName = cityName,
+                    gpsLat = currentGpsLat ?: lat,
+                    gpsLon = currentGpsLon ?: lon,
+                    cachedTemp = finalCurrentWeather.temp.toDouble(),
+                    currentTemp = finalCurrentWeather.temp.toDouble()
+                )
 
                 _uiState.value = WeatherUIState.Success(
                     cityName = cityName,
@@ -284,6 +303,8 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             val fusedLocationClient = LocationServices.getFusedLocationProviderClient(getApplication<Application>())
             fusedLocationClient.lastLocation.addOnSuccessListener { location ->
                 if (location != null) {
+                    currentGpsLat = location.latitude
+                    currentGpsLon = location.longitude
                     loadWeather(location.latitude, location.longitude)
                 } else {
                     // Fallback to Madrid if location is null on device
@@ -295,5 +316,155 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
         } catch (e: Exception) {
             loadWeather(40.4168, -3.7038, "Madrid, España")
         }
+    }
+
+    fun reloadCurrentLocation() {
+        val cachedLat = prefs.getString("cached_lat", null)?.toDoubleOrNull() ?: 40.4168
+        val cachedLon = prefs.getString("cached_lon", null)?.toDoubleOrNull() ?: -3.7038
+        val cachedName = prefs.getString("cached_name", null)
+        loadWeather(cachedLat, cachedLon, cachedName)
+    }
+
+    /**
+     * Módulo Sandbox / Climate Override:
+     * Sobrescribe el clima en tiempo real para verificar renderizado Canvas,
+     * estrategia de 3 capas, calzado y alertas bioclimáticas.
+     */
+    fun applyClimateOverride(
+        temp: Double,
+        humidity: Int,
+        windSpeed: Double,
+        cloudCover: Int,
+        weatherCode: Int,
+        isDay: Boolean
+    ) {
+        viewModelScope.launch {
+            val config = ClimateSimulationConfig(
+                isActive = true,
+                tempC = temp,
+                humidity = humidity,
+                windSpeedKmH = windSpeed,
+                cloudCover = cloudCover,
+                weatherCode = weatherCode,
+                isDay = isDay
+            )
+            DevToolsTelemetry.setSimulation(config)
+
+            val desc = WeatherUtils.getDescription(weatherCode)
+            val iconType = WeatherUtils.getIconType(weatherCode, isDay)
+            val feelsLike = temp - (windSpeed * 0.12) + (humidity * 0.04)
+
+            val indicators = BioclimaticMathEngine.calculateIndicators(
+                temp = temp,
+                humidity = humidity,
+                windSpeed = windSpeed,
+                cloudCover = cloudCover,
+                uvIndex = if (isDay) 4.5 else 0.0,
+                isDay = isDay,
+                hourlyItems = emptyList(),
+                apparentTemp = feelsLike,
+                sunsetTime = "20:30"
+            )
+
+            val recommendation = BioclimaticClothingEngine.calculate(
+                currentTemp = temp,
+                currentHumidity = humidity,
+                currentWindSpeed = windSpeed,
+                currentWindGusts = windSpeed * 1.35,
+                currentApparentTemp = feelsLike,
+                currentRainProb = if (weatherCode in listOf(51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99)) 85 else 10,
+                currentPrecipitation = if (weatherCode in listOf(61, 63, 65, 95)) 4.5 else 0.0,
+                currentUvIndex = if (isDay) 4.5 else 0.0,
+                currentCloudCover = cloudCover,
+                isDay = isDay,
+                hourlyItems = emptyList(),
+                dailyMaxUv = 5.0,
+                dailyPrecipSum = 2.0,
+                sunsetTime = "20:30",
+                indicators = indicators
+            )
+
+            val simulatedWeatherUI = CurrentWeatherUI(
+                temp = temp.roundToInt(),
+                feelsLike = feelsLike,
+                conditionDesc = "$desc (Simulado)",
+                iconType = iconType,
+                humidity = humidity,
+                windSpeed = windSpeed.roundToInt(),
+                rainProb = if (weatherCode in listOf(51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99)) 85 else 10,
+                weatherCode = weatherCode,
+                isDay = isDay,
+                sunrise = "07:15",
+                sunset = "20:45",
+                daylightDuration = "13h 30m",
+                advice = recommendation.toClothingAdvice(),
+                airQuality = null,
+                recommendation = recommendation
+            )
+
+            val simulatedHourly = (0..23).map { h ->
+                val hTemp = (temp + (if (h in 12..16) 2 else if (h in 0..6) -3 else 0)).roundToInt()
+                HourlyItem(
+                    rawTime = String.format(java.util.Locale.US, "2026-09-09T%02d:00", h),
+                    label = String.format(java.util.Locale.US, "%02d:00", h),
+                    temp = hTemp,
+                    weatherCode = weatherCode,
+                    isDay = h in 7..20,
+                    rainProb = simulatedWeatherUI.rainProb,
+                    apparentTemp = feelsLike,
+                    humidity = humidity,
+                    windSpeed = windSpeed,
+                    cloudCover = cloudCover
+                )
+            }
+
+            val currentState = _uiState.value
+            val existingCity = if (currentState is WeatherUIState.Success) {
+                currentState.cityName.removeSuffix(" (Sandbox)")
+            } else "Madrid"
+
+            _uiState.value = WeatherUIState.Success(
+                cityName = "$existingCity (Sandbox)",
+                currentWeather = simulatedWeatherUI,
+                hourlyForecast = simulatedHourly,
+                dailyForecast = if (currentState is WeatherUIState.Success) currentState.dailyForecast else emptyList(),
+                weatherCode = weatherCode,
+                isDay = isDay,
+                formattedDate = WeatherUtils.getFormattedCurrentDate()
+            )
+        }
+    }
+
+    fun resetClimateOverride() {
+        DevToolsTelemetry.clearSimulation()
+        restoreCachedLocationOrStart()
+    }
+
+    fun forceClearCache() {
+        prefs.edit()
+            .remove("cached_lat")
+            .remove("cached_lon")
+            .remove("cached_name")
+            .remove("cached_temp")
+            .remove("cached_temp_max")
+            .remove("cached_temp_min")
+            .remove("cached_desc")
+            .remove("cached_code")
+            .remove("cached_is_day")
+            .remove("cached_feels_like")
+            .remove("cached_rain_prob")
+            .remove("cached_wind_speed")
+            .remove("cached_humidity")
+            .remove("cached_clothing")
+            .remove("cached_clothing_icon")
+            .remove("cached_clothing_summary")
+            .remove("cached_clothing_source")
+            .apply()
+        DevToolsTelemetry.log("Cache", "Caché de preferencias locales purgada por completo.")
+        restoreCachedLocationOrStart()
+    }
+
+    fun toggleSimulatedOffline(enable: Boolean) {
+        DevToolsTelemetry.setSimulatedOffline(enable)
     }
 }

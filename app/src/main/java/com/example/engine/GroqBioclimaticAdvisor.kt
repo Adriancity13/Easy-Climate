@@ -72,13 +72,13 @@ REGLAS TÉRMICAS FUNDAMENTALES (CUMPLIMIENTO ESTRICTO):
 3. REGLA TEMPLADA / ENTRETIEMPO (15 °C a 17.9 °C):
    - Capas intermedias versátiles y transpirables fáciles de abrir o quitar al caminar para termorregular.
 
-ESTILO DE REDACCIÓN ESTRICTO (FLUIDO, HUMANO Y NATURAL):
-- Estructura la respuesta de forma completamente fluida y orgánica en español, evitando frases estilo bot, listas telegráficas o el uso abusivo de puntos y comas.
+ESTILO DE REDACCIÓN ESTRICTO (DIRECTO, FLUIDO Y ULTRACONCISO):
+- La respuesta de la IA debe ser DIRECTA Y ULTRACONCISA (máximo 2-3 frases, sin saludos, introducciones ni rodeos).
 - Conecta las prendas recomendadas con su motivo físico y médico mediante nexos causa-efecto naturales ('Para los X °C de hoy en Y, opta por A en tejido B. Te ayudará a C y a evitar D').
-- Justifica la recomendación basándote en la evacuación del sudor, la protección del pecho/respiración por viento y el contraste sol/sombra o caída de temperatura.
+- Justifica la recomendación basándote en la evacuación del sudor, la protección del pecho/respiración por viento, el microclima urbano (calles, plazas, parques o riberas) y el contraste sol/sombra o caída de temperatura.
 
-ESTRUCTURA DEL TITULAR (OBLIGATORIO: ENTRE 20 Y 30 PALABRAS):
-- La propiedad "titular" DEBE ser un consejo explicativo completo y razonado de EXACTAMENTE entre 20 y 30 palabras.
+ESTRUCTURA DEL TITULAR (OBLIGATORIO: DIRECTO Y CONCISO, 20-30 PALABRAS):
+- La propiedad "titular" DEBE ser un consejo directo, explicativo y razonado de EXACTAMENTE entre 20 y 30 palabras (máximo 2-3 frases).
 - Debe explicar con precisión QUÉ VESTIR y POR QUÉ con nexo causa-efecto natural.
 
 SALIDA EN JSON ESTRICTO:
@@ -125,13 +125,32 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con la siguiente estructura (sin 
             .post(body)
             .build()
 
+        com.example.utils.DevToolsTelemetry.recordGroqPrompt(requestJson.toString(2))
+        val t0 = System.currentTimeMillis()
+
         httpClient.newCall(request).execute().use { response ->
             val responseStr = response.body?.string() ?: ""
+            val latency = System.currentTimeMillis() - t0
             if (!response.isSuccessful) {
                 val errorMsg = "HTTP ${response.code} ${response.message}: $responseStr"
                 android.util.Log.e("GroqAPI", "Error HTTP devuelto por Groq ($model): $errorMsg")
+                com.example.utils.DevToolsTelemetry.recordGroqError(errorMsg)
                 throw java.io.IOException(errorMsg)
             }
+
+            try {
+                val jsonObj = JSONObject(responseStr)
+                val usage = jsonObj.optJSONObject("usage")
+                val completionTokens = usage?.optInt("completion_tokens", 0) ?: (responseStr.length / 4)
+                val totalTokens = usage?.optInt("total_tokens", completionTokens) ?: completionTokens
+                val tps = if (latency > 0) (completionTokens * 1000.0 / latency) else 0.0
+                com.example.utils.DevToolsTelemetry.recordGroqSuccess(latency, tps, totalTokens, responseStr)
+            } catch (_: Exception) {
+                val estTokens = responseStr.length / 4
+                val tps = if (latency > 0) (estTokens * 1000.0 / latency) else 0.0
+                com.example.utils.DevToolsTelemetry.recordGroqSuccess(latency, tps, estTokens, responseStr)
+            }
+
             return responseStr
         }
     }
@@ -143,7 +162,8 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con la siguiente estructura (sin 
         humidity: Int,
         windSpeed: Double,
         indicators: BioclimaticPhysicalIndicators,
-        sunsetTime: String?
+        sunsetTime: String?,
+        microclimateSummary: String? = null
     ): GroqBioclimaticResult = withContext(Dispatchers.IO) {
         val userPrompt = buildString {
             append("Ciudad: $cityName. ")
@@ -151,6 +171,9 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con la siguiente estructura (sin 
             append("Sensación térmica aparente: ${String.format(Locale.US, "%.1f", apparentTemp)} °C. ")
             append("Humedad relativa: $humidity%. ")
             append("Velocidad de viento base: ${String.format(Locale.US, "%.1f", windSpeed)} km/h. ")
+            if (!microclimateSummary.isNullOrBlank()) {
+                append("Contexto microclimático urbano (OSM): $microclimateSummary. ")
+            }
             append("\n--- INDICADORES FÍSICOS Y MATEMÁTICOS BIOCLIMÁTICOS --- \n")
             append("1. Tasa de Evaporación y Capilaridad: Punto de Rocío Td = ${String.format(Locale.US, "%.1f", indicators.dewPoint)} °C, Humidex = ${String.format(Locale.US, "%.1f", indicators.humidex)}. ")
             if (indicators.isHighSweatRisk) {

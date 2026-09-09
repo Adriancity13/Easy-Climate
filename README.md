@@ -1,9 +1,10 @@
-# 🌤️ Easy-Climate: Guía Técnica de Ingeniería Bioclimática, IA Local-First y Arquitectura Android Jetpack
+# 🌤️ Easy-Climate: Guía Técnica de Ingeniería Bioclimática, IA Local-First, Microclima OSM y Arquitectura Android Jetpack
 
 [![Licencia: MIT](https://img.shields.io/badge/Licencia-MIT%20Open%20Source-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-purple.svg?style=for-the-badge&logo=kotlin)](https://kotlinlang.org)
 [![Android Jetpack](https://img.shields.io/badge/Android%20Jetpack-Compose%20M3-3DDC84.svg?style=for-the-badge&logo=android)](https://developer.android.com/jetpack)
 [![Open-Meteo](https://img.shields.io/badge/API-Open--Meteo%20v1-orange.svg?style=for-the-badge)](https://open-meteo.com/)
+[![OpenStreetMap](https://img.shields.io/badge/OSM-Nominatim%20Microclimate-7EBC6F.svg?style=for-the-badge&logo=openstreetmap)](https://nominatim.openstreetmap.org/)
 [![Groq Cloud](https://img.shields.io/badge/LLM-Groq%20Llama%203.3%2070B-F55036.svg?style=for-the-badge)](https://groq.com/)
 [![Jetpack Glance](https://img.shields.io/badge/Widget-Glance%20%2F%20RemoteViews-4285F4.svg?style=for-the-badge)](https://developer.android.com/jetpack/compose/glance)
 [![Nothing OS Ready](https://img.shields.io/badge/Nothing%20OS-Monochrome%20Ready-000000.svg?style=for-the-badge)](https://nothing.tech)
@@ -13,13 +14,18 @@
 ## 📑 Tabla de Contenidos
 
 1. [Visión General y Fundamento Fisiológico](#1-visión-general-y-fundamento-fisiológico)
-2. [Arquitectura del Sistema (Hybrid Local-First + LLM)](#2-arquitectura-del-sistema-hybrid-local-first--llm)
-   - [Diagrama de Flujo de Datos](#diagrama-de-flujo-de-datos)
-   - [Gestión de Estado Unidireccional (UDF)](#gestión-de-estado-unidireccional-udf)
+2. [Arquitectura del Sistema (Hybrid Local-First + Microclima + LLM)](#2-arquitectura-del-sistema-hybrid-local-first--microclima--llm)
+   - [Diagrama de Flujo Integral del Sistema](#diagrama-de-flujo-integral-del-sistema)
+   - [Gestión de Estado Unidireccional (UDF) en MVVM](#gestión-de-estado-unidireccional-udf-en-mvvm)
    - [Caché de Doble Barrera en RAM (`Double-Barrier Cache`)](#caché-de-doble-barrera-en-ram-double-barrier-cache)
    - [Estrategia Offgrid / Zero-Latency](#estrategia-offgrid--zero-latency)
-   - [Geocodificación Multinivel y Resolución de Barrios](#geocodificación-multinivel-y-resolución-de-barrios)
-3. [Desglose Matemático y Biomecánico del Algoritmo Local (`BioclimaticClothingEngine.kt`)](#3-desglose-matemático-y-biomecánico-del-algoritmo-local-bioclimaticclothingenginekt)
+   - [Geocodificación Multinivel y Resolución Granular de Barrios](#geocodificación-multinivel-y-resolución-granular-de-barrios)
+3. [Capa de Contexto Urbano y Microclimático OSM (`NominatimService.kt` & `MicroclimateAdjuster.kt`)](#3-capa-de-contexto-urbano-y-microclimático-osm-nominatimservicekt--microclimateadjusterkt)
+   - [Extracción y Decodificación de Etiquetas OSM (`extratags`)](#extracción-y-decodificación-de-etiquetas-osm-extratags)
+   - [Matriz de Modificadores Microclimáticos y Fricción de Entorno](#matriz-de-modificadores-microclimáticos-y-fricción-de-entorno)
+   - [Concurrencia con `async/await`, Timeout Estricto (1.5s) y Resiliencia de Fallback](#concurrencia-con-asyncawait-timeout-estricto-15s-y-resiliencia-de-fallback)
+   - [Cumplimiento de Políticas de Uso y Encabezados de Red](#cumplimiento-de-políticas-de-uso-y-encabezados-de-red)
+4. [Desglose Matemático y Biomecánico del Algoritmo Local (`BioclimaticClothingEngine.kt`)](#4-desglose-matemático-y-biomecánico-del-algoritmo-local-bioclimaticclothingenginekt)
    - [A. Ecuación de Magnus-Tetens y Punto de Rocío ($T_d$)](#a-ecuación-de-magnus-tetens-y-punto-de-rocío-t_d)
    - [B. Índice Humidex y Tasa de Evaporación Cutánea](#b-índice-humidex-y-tasa-de-evaporación-cutánea)
    - [C. Aceleración por Efecto Venturi en Cañones Urbanos](#c-aceleración-por-efecto-venturi-en-cañones-urbanos)
@@ -31,21 +37,29 @@
    - [I. Sistema Modular de 3 Capas (Método Cebolla)](#i-sistema-modular-de-3-capas-método-cebolla)
    - [J. Motor Dinámico de Selección de Calzado](#j-motor-dinámico-de-selección-de-calzado)
    - [K. Reglas Estrictas de Selección y Veto de Materiales Textiles](#k-reglas-estrictas-de-selección-y-veto-de-materiales-textiles)
-4. [Integración con Groq Cloud LLM (`GroqBioclimaticAdvisor.kt`)](#4-integración-con-groq-cloud-llm-groqbioclimaticadvisorkt)
-   - [Modelo e Inferencia de Ultrabaja Latencia](#modelo-e-inferencia-de-ultrabaja-latencia)
-   - [System Prompt Bioclimático y Directiva Causal](#system-prompt-bioclimático-y-directiva-causal)
-   - [Esquema de Inyección de Contexto JSON](#esquema-de-inyección-de-contexto-json)
-   - [Mecanismo de Fallback Transparente](#mecanismo-de-fallback-transparente)
-5. [Diseño de Interfaz Jetpack Compose M3 y Renderizado en Canvas](#5-diseño-de-interfaz-jetpack-compose-m3-y-renderizado-en-canvas)
+5. [Consola de Diagnóstico y Panel de Administración DevTools (`DevToolsAdminPanel.kt`)](#5-consola-de-diagnóstico-y-panel-de-administración-devtools-devtoolsadminpanelkt)
+   - [Acceso Seguro Protegido por PIN](#acceso-seguro-protegido-por-pin)
+   - [Tab 1: Inspector Bioclimático en Tiempo Real](#tab-1-inspector-bioclimático-en-tiempo-real)
+   - [Tab 2: Inspector Microclimático OSM (Nominatim)](#tab-2-inspector-microclimático-osm-nominatim)
+   - [Tab 3: Monitor de Red & LLM (Groq Cloud)](#tab-3-monitor-de-red--llm-groq-cloud)
+   - [Tab 4: Gestor de Caché y Persistencia en Memoria](#tab-4-gestor-de-caché-y-persistencia-en-memoria)
+   - [Tab 5: Climate Sandbox & Simulador de Escenarios Extremos](#tab-5-climate-sandbox--simulador-de-escenarios-extremos)
+   - [Tab 6: Telemetría de Hardware, Memoria RAM y Rendimiento](#tab-6-telemetría-de-hardware-memoria-ram-y-rendimiento)
+6. [Integración con Groq Cloud LLM (`GroqBioclimaticAdvisor.kt`)](#6-integración-con-groq-cloud-llm-groqbioclimaticadvisorkt)
+   - [Modelo e Inferencia de Ultrabaja Latencia (Llama 3.3 70B)](#modelo-e-inferencia-de-ultrabaja-latencia-llama-33-70b)
+   - [System Prompt Bioclimático y Directiva Causal Ultraconcisa](#system-prompt-bioclimático-y-directiva-causal-ultraconcisa)
+   - [Inyección de Contexto Microclimático en el Prompt JSON](#inyección-de-contexto-microclimático-en-el-prompt-json)
+   - [Mecanismo de Fallback Transparente a Cero Latencia](#mecanismo-de-fallback-transparente-a-cero-latencia)
+7. [Diseño de Interfaz Jetpack Compose M3 y Renderizado en Canvas](#7-diseño-de-interfaz-jetpack-compose-m3-y-renderizado-en-canvas)
    - [Fondo Dinámico Reactivo Procedural (`AtmosphericWeatherBackground.kt`)](#fondo-dinámico-reactivo-procedural-atmosphericweatherbackgroundkt)
    - [Arquitectura Visual Anti-Matrioska y Glassmorphism](#arquitectura-visual-anti-matrioska-y-glassmorphism)
    - [Componentes UI Clave](#componentes-ui-clave)
-6. [Widget de Escritorio Nativo de 3 Filas (Jetpack Glance & RemoteViews)](#6-widget-de-escritorio-nativo-de-3-filas-jetpack-glance--remoteviews)
+8. [Widget de Escritorio Nativo de 3 Filas (Jetpack Glance & RemoteViews)](#8-widget-de-escritorio-nativo-de-3-filas-jetpack-glance--remoteviews)
    - [Estructura de Información en 3 Filas Compactas](#estructura-de-información-en-3-filas-compactas)
    - [Ciclo de Vida y Actualización con WorkManager](#ciclo-de-vida-y-actualización-con-workmanager)
-7. [Compatibilidad Adaptativa con Nothing OS & Material You](#7-compatibilidad-adaptativa-con-nothing-os--material-you)
-8. [Guía de Compilación, Pruebas y Despliegue](#8-guía-de-compilación-pruebas-y-despliegue)
-9. [Licencia de Uso 100% Gratuita y Open Source (MIT)](#9-licencia-de-uso-100-gratuita-y-open-source-mit)
+9. [Compatibilidad Adaptativa con Nothing OS & Material You](#9-compatibilidad-adaptativa-con-nothing-os--material-you)
+10. [Guía de Compilación, Pruebas y Despliegue](#10-guía-de-compilación-pruebas-y-despliegue)
+11. [Licencia de Uso 100% Gratuita y Open Source (MIT)](#11-licencia-de-uso-100-gratuita-y-open-source-mit)
 
 ---
 
@@ -62,15 +76,15 @@ Donde:
 - $E$: Pérdida de calor por evaporación de sudor en la superficie dérmica.
 - $R_{\text{res}}, C_{\text{res}}$: Pérdidas por calor latente y sensible en el tracto respiratorio.
 
-**Easy-Climate** nace para cerrar esta brecha fundamental. Es un sistema integral que traduce variables físicas complejas (irradiancia solar en $W/m^2$, punto de rocío $T_d$, efecto cañón urbano por aceleración Venturi, gradientes térmicos tras el ocaso y humedad absoluta) en **estrategias textiles precisas, selección de calzado técnico, pautas de ventilación/abrigo modular en 3 capas y advertencias fisiológicas preventivas** (evitación de broncoconstricción por choque térmico/aire seco y prevención de hipotermia local por sudor frío acumulado).
+**Easy-Climate** nace para cerrar esta brecha fundamental. Es un sistema integral que traduce variables físicas complejas (irradiancia solar en $W/m^2$, punto de rocío $T_d$, efecto cañón urbano por aceleración Venturi, gradientes térmicos tras el ocaso, humedad absoluta y el entorno urbanístico de OpenStreetMap) en **estrategias textiles precisas, selección de calzado técnico, pautas de ventilación/abrigo modular en 3 capas y advertencias fisiológicas preventivas** (evitación de broncoconstricción por choque térmico/aire seco y prevención de hipotermia local por sudor frío acumulado).
 
 ---
 
-## 🏗️ 2. Arquitectura del Sistema (Hybrid Local-First + LLM)
+## 🏗️ 2. Arquitectura del Sistema (Hybrid Local-First + Microclima + LLM)
 
-Easy-Climate implementa un patrón **Hybrid Local-First**. La totalidad de los cálculos matemáticos, deducciones biomecánicas, matrices de aislamiento y pronósticos para los 7 días se computan **de forma síncrona en memoria RAM local en 0 ms**, mientras que una capa secundaria de Inteligencia Artificial Generativa (*Llama 3.3 70B vía Groq Cloud*) enriquece la explicación con síntesis causal en lenguaje natural cuando hay conectividad disponible.
+Easy-Climate implementa un patrón **Hybrid Local-First**. La totalidad de los cálculos matemáticos, deducciones biomecánicas, matrices de aislamiento y pronósticos para los 7 días se computan **de forma síncrona en memoria RAM local en 0 ms**, mientras que una capa secundaria de Inteligencia Artificial Generativa (*Llama 3.3 70B vía Groq Cloud*) y el servicio microclimático de *OpenStreetMap Nominatim* enriquecen la precisión de las decisiones físicas y la explicación contextual.
 
-### Diagrama de Flujo de Datos
+### Diagrama de Flujo Integral del Sistema
 
 ```mermaid
 flowchart TD
@@ -82,18 +96,33 @@ flowchart TD
 
     subgraph CACHE_ENGINE [Motor de Datos y Caché en RAM]
         CACHE[Double-Barrier Cache en RAM<br>• TTL: 30 min<br>• Distancia: 2.0 km<br>• Térmica: ΔT ≥ 3°C]
-        API_METEO[Open-Meteo v1 REST API<br>168 Horas + Radiación + Calidad del Aire]
+    end
+
+    subgraph NETWORK_PARALLEL [Peticiones de Red Asíncronas en Paralelo (async/await)]
+        API_METEO[Open-Meteo v1 REST API<br>168 Horas + Radiación Solar]
+        API_AQ[Air Quality REST API<br>PM2.5, PM10, Ozono, Polvo]
+        API_NOMINATIM[OSM Nominatim Microclimate API<br>extratags: highway, leisure, waterway<br>Timeout estricto: 1.5s]
+    end
+
+    subgraph MICROCLIMATE_LAYER [Capa de Ajuste Microclimático (MicroclimateAdjuster.kt)]
+        OSM_PARSE[Parseo de Etiquetas Urbanas OSM]
+        MICRO_CALC[Ajuste Físico Previo:<br>• ΔT Evapotranspiración vegetal (-1.5°C)<br>• ΔHR Aporte de humedad ribereña (+10%)<br>• Factor Venturi calle estrecha (x1.25)<br>• Factor Solar plaza/avenida (x1.20)]
+        ADJUSTED_METEO[Variables Meteorológicas Corregidas para el Entorno]
     end
 
     subgraph BIOCLIMATIC_CORE [Motor Físico Local en RAM (BioclimaticClothingEngine.kt)]
-        PHYS[Cálculo Físico Instantáneo (0 ms)<br>• Magnus-Tetens / Punto de Rocío<br>• Humidex & Evaporación Cutánea<br>• Corrección Venturi Urbana<br>• Delta Wind Chill Pectoral<br>• Protección de Mucosa Respiratoria<br>• Ganancia Solar W/m² vs Sombra<br>• Matriz de Aislamiento CLO (0.3 a 1.2+)<br>• Estrategia Modular 3 Capas<br>• Selección de Calzado y Alertas]
+        PHYS[Cálculo Físico Instantáneo (0 ms)<br>• Magnus-Tetens / Punto de Rocío (T_d)<br>• Humidex & Evaporación Cutánea<br>• Corrección Venturi Urbana<br>• Delta Wind Chill Pectoral<br>• Protección de Mucosa Respiratoria<br>• Ganancia Solar W/m² vs Sombra<br>• Matriz de Aislamiento CLO (0.3 a 1.2+)<br>• Estrategia Modular 3 Capas<br>• Selección de Calzado y Alertas]
         LOCAL_REC[Entidad Local de Recomendación Completa]
     end
 
+    subgraph DEVTOOLS_TELEMETRY [Telemetría y Diagnóstico DevTools (PIN: 1234)]
+        DEV_SUB[DevToolsTelemetry StateFlows<br>• Inspector Bioclimático<br>• Inspector Microclimático OSM<br>• Monitor de Red & LLM<br>• Caché & RAM<br>• Climate Sandbox & Override]
+    end
+
     subgraph AI_LAYER [Capa LLM de Síntesis Causal (Groq Cloud)]
-        PROMPT[Inyección Contexto JSON + System Prompt Fisiológico]
+        PROMPT[Inyección Contexto JSON + Microclima OSM + System Prompt Fisiológico]
         GROQ[Groq Ingestion API<br>Llama 3.3 70B Versatile (~300 tok/s)]
-        AI_REC[Síntesis Causal 20-30 Palabras]
+        AI_REC[Síntesis Causal Ultraconcisa 2-3 Frases]
     end
 
     subgraph UI_OUTPUT [Presentación y Widgets]
@@ -106,29 +135,39 @@ flowchart TD
     GEO --> CACHE
     MANUAL --> CACHE
     CACHE -->|Hit: 0 ms| PHYS
-    CACHE -->|Miss: Network Request| API_METEO
-    API_METEO --> CACHE
-    API_METEO --> PHYS
+    CACHE -->|Miss: Network Request| NETWORK_PARALLEL
+    NETWORK_PARALLEL --> API_METEO
+    NETWORK_PARALLEL --> API_AQ
+    NETWORK_PARALLEL --> API_NOMINATIM
+    API_NOMINATIM --> OSM_PARSE
+    OSM_PARSE --> MICRO_CALC
+    API_METEO --> MICRO_CALC
+    MICRO_CALC --> ADJUSTED_METEO
+    ADJUSTED_METEO --> PHYS
     PHYS --> LOCAL_REC
-    LOCAL_REC -->|Conexión Activa| PROMPT
+    LOCAL_REC --> PROMPT
     PROMPT --> GROQ
-    GROQ -->|Éxito| AI_REC
+    GROQ -->|Éxito (<400ms)| AI_REC
     AI_REC --> STATE
     LOCAL_REC -->|Offline / Fallback / Timeout| STATE
     LOCAL_REC -->|Zero Cost / No API Calls| WIDGET
     STATE --> SCREEN
+    PHYS -.-> DEV_SUB
+    MICRO_CALC -.-> DEV_SUB
+    GROQ -.-> DEV_SUB
+    DEV_SUB -.-> SCREEN
 ```
 
-### Gestión de Estado Unidireccional (UDF)
+### Gestión de Estado Unidireccional (UDF) en MVVM
 
 El flujo de información en la aplicación se adhiere rígidamente al patrón **Model-View-ViewModel (MVVM)** con **Unidirectional Data Flow**:
 
 1. **`WeatherViewModel`**: Expone un `StateFlow<WeatherUIState>` inmutable consumido por la interfaz de usuario con `collectAsState()`.
 2. **`WeatherUIState`**: Clase sellada (*sealed interface*) que modela de forma determinista los estados:
-   - `Loading`: Pantalla de carga con retroalimentación contextual.
+   - `Loading`: Pantalla de carga con retroalimentación contextual reactiva.
    - `PermissionDenied`: Estado de permisos con alternativas manuales de selección de ciudad.
    - `Error(message)`: Manejo controlado de excepciones con mecanismo de reintento.
-   - `Success(...)`: Modelo enriquecido con la previsión horaria, diaria, calidad del aire, ciclo solar y la entidad `ClothingRecommendation`.
+   - `Success(...)`: Modelo enriquecido con la previsión horaria, diaria, calidad del aire, ciclo solar, contexto microclimático y la entidad `ClothingRecommendation`.
 
 ### Caché de Doble Barrera en RAM (`Double-Barrier Cache`)
 
@@ -145,44 +184,107 @@ Para maximizar la autonomía de batería del dispositivo móvil y evitar peticio
 - **Previsión de 7 Días Local:** El desglose completo de los 7 días y sus 24 horas (`DailyItem`, `HourlyItem`) se computa en su totalidad mediante el motor físico `BioclimaticClothingEngine.kt` con un coste medio menor a **0.05 ms por día**.
 - **Independencia de Servidores:** La aplicación funciona al 100% de sus capacidades técnicas sin conexión a internet en modo de caché previa o calculando datos directamente sin requerir servidores intermedios de terceros.
 
-### Geocodificación Multinivel y Resolución de Barrios
+### Geocodificación Multinivel y Resolución Granular de Barrios
 
 El motor de búsqueda y localización implementa un sistema híbrido de resolución geográfica:
-1. **Detección de Barrio/Distrito:** Prioriza el topónimo más granular (ej. *Malasaña*, *Chamberí*, *Delicias*, *Sarrià*, *Ruzafa*) mediante `Open-Meteo Geocoding API` con soporte de fallback a `OpenStreetMap Nominatim`.
+1. **Detección de Barrio/Distrito:** Prioriza el topónimo más granular (ej. *Malasaña*, *Chamberí*, *Delicias*, *Sarrià*, *Ruzafa*) mediante `Open-Meteo Geocoding API` con soporte de reverse geocoding en `OpenStreetMap Nominatim`.
 2. **Identificador Jerárquico:** Muestra en interfaz `Barrio · Ciudad · País` para evitar ambigüedades en áreas metropolitanas densas donde el clima y el efecto cañón varían entre distritos.
 
 ---
 
-## ⚙️ 3. Desglose Matemático y Biomecánico del Algoritmo Local (`BioclimaticClothingEngine.kt`)
+## 🗺️ 3. Capa de Contexto Urbano y Microclimático OSM (`NominatimService.kt` & `MicroclimateAdjuster.kt`)
+
+Las garitas meteorológicas de Open-Meteo se encuentran en estaciones meteorológicas abiertas o aeropuertos, lo que ignora la realidad física del suelo donde pisa el usuario. Easy-Climate incorpora una capa de microclima impulsada por **OpenStreetMap (OSM Nominatim)** que ajusta la física meteorológica antes de calcular la ropa requerida.
+
+```
+                              LOCALIZACIÓN EXACTA GPS
+                                         │
+                    ┌────────────────────┴────────────────────┐
+                    ▼                                         ▼
+         [ OPEN-METEO MACROCLIMA ]                 [ OSM NOMINATIM REVERSE ]
+         • Temp: 22.0 °C                           • highway: residential
+         • HR: 55 %                                • waterway: river
+         • Viento: 15.0 km/h                       • leisure: park
+                    │                                         │
+                    └────────────────────┬────────────────────┘
+                                         ▼
+                           [ MICROCLIMATE ADJUSTER ]
+                    • Clasificación del Entorno Urbano
+                    • Corrección de Evapotranspiración vegetal (-1.5°C)
+                    • Inyección de Humedad por Ribera (+10% HR)
+                    • Aceleración Venturi en Cañones (x1.25)
+                                         │
+                                         ▼
+                           [ CLIMA REAL EN SUPERFICIE ]
+                    • Temp Ajustada: 20.5 °C  |  HR Ajustada: 65 %
+                    • Viento en Acera: 18.8 km/h (Alerta Pectoral Activa)
+```
+
+### Extracción y Decodificación de Etiquetas OSM (`extratags`)
+
+El servicio `NominatimService.kt` solicita la geocodificación con el parámetro `extratags=1` y `addressdetails=1`. El motor analiza las etiquetas clave de la geometría espacial:
+
+- `waterway` (`river`, `canal`, `stream`, `dock`, `water`): Detección de proximidad a ríos, costas o canales.
+- `natural` (`water`, `wood`, `scrub`, `wetland`): Masas boscosas, lagos o humedales.
+- `leisure` (`park`, `garden`, `nature_reserve`): Parques urbanos y zonas ajardinadas.
+- `highway` (`residential`, `living_street`, `service` vs. `primary`, `trunk`, `motorway`): Diferenciación entre calles residenciales estrechas y grandes avenidas abiertas.
+- `landuse` (`forest`, `meadow`, `grass`, `recreation_ground`): Coberturas vegetales continuas.
+
+### Matriz de Modificadores Microclimáticos y Fricción de Entorno
+
+| Tipo de Microclima | Etiquetas OSM Clave | $\Delta T$ Evapotranspirativo | $\Delta\text{HR}$ Humedad | Factor Viento | Factor Solar Directo | Justificación Biomecánica |
+| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| **RIBERA / LAGO / AGUA** | `waterway=*`, `natural=water` | **$-0.5^\circ\text{C}$** | **$+10\%$** | **$\times 1.10$** | **$\times 1.05$** | Aporte evaporativo de humedad ambiente; incremento de sensación térmica húmeda y enfriamiento convectivo en orilla. |
+| **PARQUE / BOSQUE** | `leisure=park`, `natural=wood`, `landuse=forest` | **$-1.5^\circ\text{C}$** | **$+5\%$** | **$\times 0.85$** | **$\times 0.80$** | Efecto sumidero de calor por transpiración de los árboles (*Cool Island Effect*); reducción de viento por fricción del follaje. |
+| **CALLE ESTRECHA** | `highway=residential`, `highway=living_street` | **$0.0^\circ\text{C}$** | **$0\%$** | **$\times 1.25$** | **$\times 0.85$** | Aceleración por efecto cañón urbano (Venturi); bloqueo de radiación solar directa por edificios altos. |
+| **AVENIDA ANCHA / PLAZA** | `highway=primary`, `highway=secondary`, `place=square` | **$+0.8^\circ\text{C}$** | **$-2\%$** | **$\times 1.10$** | **$\times 1.20$** | Almacenamiento térmico del asfalto e insolación solar directa sin obstáculos arquitectónicos. |
+| **URBANO ESTÁNDAR** | Sin etiquetas específicas | **$0.0^\circ\text{C}$** | **$0\%$** | **$\times 1.00$** | **$\times 1.00$** | Perfil neutro base calculado por Open-Meteo. |
+
+### Concurrencia con `async/await`, Timeout Estricto (1.5s) y Resiliencia de Fallback
+
+Para garantizar que la interfaz de usuario jamás experimente bloqueos ni retrasos perceptibles:
+- La llamada a OpenStreetMap Nominatim se ejecuta en paralelo con las APIs de Open-Meteo mediante `async(Dispatchers.IO)`.
+- Se aplica un **timeout estricto no bloqueante de 1500 ms (`1.5s`)** con `withTimeoutOrNull`.
+- Si la conexión falla, se excede el timeout o la respuesta carece de etiquetas, la app realiza un **retorno silencioso al perfil estándar** sin mostrar ningún diálogo de error ni interrumpir la experiencia.
+
+### Cumplimiento de Políticas de Uso y Encabezados de Red
+
+De acuerdo estricto con la *Nominatim Usage Policy*:
+- Encabezado HTTP `User-Agent`: `EasyClimateApp/1.0 (contacto@easyclimate.local)`
+- Respeto del límite de 1 petición por segundo y limitación de peticiones redundantes mediante la Double-Barrier Cache en RAM.
+
+---
+
+## ⚙️ 4. Desglose Matemático y Biomecánico del Algoritmo Local (`BioclimaticClothingEngine.kt`)
 
 El núcleo `BioclimaticClothingEngine.kt` procesa los datos brutos de la atmósfera y ejecuta en microsegundos una serie de ecuaciones termodinámicas y reglas biomecánicas:
 
 ```
-                                  ENTRADA METEOROLÓGICA BRUTA
+                                  ENTRADA METEOROLÓGICA AJUSTADA
                [ Temperatura (T), Humedad Relativa (HR), Viento (V), Radiación (W/m²), Nubes (C%) ]
-                                               │
-               ┌───────────────────────────────┴───────────────────────────────┐
-               ▼                                                               ▼
-    [ TERMODINÁMICA CUTÁNEA ]                                      [ DINÁMICA DE CONVECCIÓN ]
-   • Magnus-Tetens: E_s(T), E(T,HR)                               • Corrección Venturi: V_urbano = 1.2 · V
-   • Punto de Rocío (T_d)                                         • Wind Chill Jagti: Sensación Pectoral
-   • Humidex Masterson & Richardson                               • Delta Viento: ΔT_viento = T - WindChill
-               │                                                               │
-               └───────────────────────────────┬───────────────────────────────┘
-                                               ▼
-                                  [ RADIACIÓN Y GRADIENTES ]
-                                 • Ganancia Solar: ΔT_solar
-                                 • Gradiente Caída Ocaso (Sunset Drop)
-                                 • Balance de Humedad Mucosa
-                                               │
-                                               ▼
-                              [ MATRIZ BIOCLIMÁTICA DE DECISIÓN ]
-           ┌───────────────────────────────────┼───────────────────────────────────┐
-           ▼                                   ▼                                   ▼
-   [ MATRIZ CLO (0.3 - 1.2+) ]      [ MÉTODO CEBOLLA 3 CAPAS ]           [ VETOS TEXTILES ]
-   • Cálculo de Aislamiento         • Capa 1: Contacto Transpirable      • VETO DEL ALGODÓN
-   • Nivel Térmico Asignado         • Capa 2: Aislamiento Modular        • Malla 3D / Poliéster
-   • Alerta Viento/Pectoral         • Capa 3: Escudo Cortavientos        • Calzado y Membrana
+                                                │
+                ┌───────────────────────────────┴───────────────────────────────┐
+                ▼                                                               ▼
+     [ TERMODINÁMICA CUTÁNEA ]                                      [ DINÁMICA DE CONVECCIÓN ]
+    • Magnus-Tetens: E_s(T), E(T,HR)                               • Corrección Venturi: V_urbano = 1.25 · V
+    • Punto de Rocío (T_d)                                         • Wind Chill Jagti: Sensación Pectoral
+    • Humidex Masterson & Richardson                               • Delta Viento: ΔT_viento = T - WindChill
+                │                                                               │
+                └───────────────────────────────┬───────────────────────────────┘
+                                                ▼
+                                   [ RADIACIÓN Y GRADIENTES ]
+                                  • Ganancia Solar: ΔT_solar
+                                  • Gradiente Caída Ocaso (Sunset Drop)
+                                  • Balance de Humedad Mucosa
+                                                │
+                                                ▼
+                               [ MATRIZ BIOCLIMÁTICA DE DECISIÓN ]
+            ┌───────────────────────────────────┼───────────────────────────────────┐
+            ▼                                   ▼                                   ▼
+    [ MATRIZ CLO (0.3 - 1.2+) ]      [ MÉTODO CEBOLLA 3 CAPAS ]           [ VETOS TEXTILES ]
+    • Cálculo de Aislamiento         • Capa 1: Contacto Transpirable      • VETO DEL ALGODÓN
+    • Nivel Térmico Asignado         • Capa 2: Aislamiento Modular        • Malla 3D / Poliéster
+    • Alerta Viento/Pectoral         • Capa 3: Escudo Cortavientos        • Calzado y Membrana
 ```
 
 ---
@@ -217,9 +319,9 @@ $$\text{Humidex} = T + \frac{5}{9} \cdot (E(T, \text{HR}) - 10)$$
 
 En entornos de ciudad (*Urban Street Canyons*), los edificios altos y las calles estrechas provocan un estrechamiento de las líneas de flujo del viento, acelerando la velocidad local en superficie según el principio de conservación de la masa y el efecto Venturi:
 
-$$V_{\text{urbano}} = V_{\text{estación}} \cdot k_v \quad \text{donde } k_v = 1.20$$
+$$V_{\text{urbano}} = V_{\text{estación}} \cdot k_v \quad \text{donde } k_v \in [1.10, 1.25]$$
 
-Si la estación base mide $20\text{ km/h}$, el motor bioclimático evalúa la exposición corporal a $24\text{ km/h}$ en la acera.
+Si la estación base mide $20\text{ km/h}$, el motor bioclimático evalúa la exposición corporal a $25\text{ km/h}$ en una calle residencial.
 
 ---
 
@@ -255,7 +357,7 @@ A partir de la cobertura de nubes ($C\% \in [0, 100]$), la altitud solar y la ir
 
 $$\text{Atenuación por Nubosidad } (f_c) = 1.0 - 0.75 \cdot \left(\frac{C}{100}\right)^{3.4}$$
 
-$$\Delta T_{\text{solar}} = \text{SolarBoost}_{\text{max}} \cdot f_c \quad \text{donde } \Delta T_{\text{solar}} \in [0.0^\circ\text{C}, +4.5^\circ\text{C}]$$
+$$\Delta T_{\text{solar}} = \text{SolarBoost}_{\text{max}} \cdot f_c \cdot \text{FactorSolar}_{\text{OSM}} \quad \text{donde } \Delta T_{\text{solar}} \in [0.0^\circ\text{C}, +4.5^\circ\text{C}]$$
 
 $$T_{\text{percibida, sol}} = \text{FeelsLike} + \Delta T_{\text{solar}}$$
 $$T_{\text{percibida, sombra}} = \text{FeelsLike} - 0.5^\circ\text{C}$$
@@ -344,33 +446,82 @@ val footwear = when {
 
 ---
 
-## 🧠 4. Integración con Groq Cloud LLM (`GroqBioclimaticAdvisor.kt`)
+## 🛠️ 5. Consola de Diagnóstico y Panel de Administración DevTools (`DevToolsAdminPanel.kt`)
 
-### Modelo e Inferencia de Ultrabaja Latencia
+Easy-Climate incluye una **consola de diagnóstico, auditoría e inspección técnica en tiempo real** integrada de forma nativa en la app, diseñada para desarrolladores, evaluadores de rendimiento e ingenieros de software.
+
+### Acceso Seguro Protegido por PIN
+
+- **Punto de Entrada:** Un elemento de texto discreto en el pie de página de la pantalla principal (`WeatherScreen.kt`): `Easy-Climate v1.0.0 · DevTools`.
+- **PIN de Seguridad:** Diálogo modal protegido con código PIN (`1234`). Previene aperturas involuntarias por parte de usuarios finales.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  🛠️ DEVTOOLS ADMIN PANEL · EASY-CLIMATE                   │
+│  [🧬 Bioclimático] [🗺️ Microclima] [🌐 Red] [💾 Caché]... │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Tab 1: Inspector Bioclimático en Tiempo Real
+- **Variables Intermedias:** Visualización instantánea de $T_d$ (Punto de Rocío), Índice Humidex, Velocidad del Viento Urbano corregida por Venturi, Delta de Wind Chill Pectoral y Factor de Protección de Mucosa Respiratoria.
+- **Matriz de Decisiones:** Nivel CLO asignado, estado de las alertas biomecánicas y desglose en vivo de las 3 capas recomendadas.
+
+### Tab 2: Inspector Microclimático OSM (Nominatim)
+- **Estado del Servicio:** Latencia en milisegundos ($ms$), código de estado HTTP (`EXITOSA`, `TIMEOUT > 1.5s`, `FALLBACK`), modo de ubicación (`GPS_EXACTO`, `BUSQUEDA_ZONA`, `OVERRIDE_MANUAL`) y User-Agent activo.
+- **Datos Crudos OSM:** Nombre de lugar detectado (`display_name`) y tabla interactiva de etiquetas `extratags` (`highway`, `leisure`, `waterway`, etc.).
+- **Impacto Físico en RAM:** Visualización del $\Delta T$ evapotranspirativo, $\Delta\text{HR}$ de aporte acuático, factor Venturi y factor de irradiancia solar.
+- **Sandbox Microclimático en Vivo:**
+  - *Switch Simular Fallback OSM:* Fuerza la aplicación a operar con el perfil neutro sin consultar la red.
+  - *Selector de Prueba Rápida de Microclima:* Permite forzar en caliente los perfiles *Parque/Bosque*, *Río/Lago*, *Calle Estrecha* o *Avenida Ancha* para comprobar instantáneamente la reacción en la UI y en las 3 capas.
+
+### Tab 3: Monitor de Red & LLM (Groq Cloud)
+- **Latencias de Red Desglosadas:** Tiempos de respuesta individuales para Open-Meteo Weather, Air Quality API y Groq Cloud Ingestion API.
+- **Métricas LLM:** Conteo de tokens generados, velocidad de inferencia (~300 tokens/s) y contador de fallbacks ejecutados.
+- **Log de Peticiones:** Historial cronológico con timestamp de cada evento de red.
+
+### Tab 4: Gestor de Caché y Persistencia en Memoria
+- **Estado de la Double-Barrier Cache:** Coordenadas cacheadas, topónimo activo, tiempo transcurrido desde el último refresco y distancia euclidiana/Haversine.
+- **Controles de Almacenamiento:** Botón de purga total de caché en memoria y switch para simular modo offline estricto (*Offgrid Simulator*).
+
+### Tab 5: Climate Sandbox & Simulador de Escenarios Extremos
+- **Sliders Interactivos:** Modificación en tiempo real de Temperatura ($-15^\circ\text{C}$ a $+45^\circ\text{C}$), Humedad Relativa ($0\%$ a $100\%$), Viento ($0$ a $90\text{ km/h}$), Código de Clima WMO e Irradiancia Solar.
+- **Presets de Prueba Rápida:**
+  - ❄️ *Ola de Frío Extremo (Filomena -5°C, 25 km/h)*
+  - ☀️ *Ola de Calor Canicular (41°C, 15% HR)*
+  - ⛈️ *Tormenta de Verano / Bochorno (27°C, 88% HR)*
+  - 💨 *Cañón de Viento Venturi (11°C, 45 km/h)*
+
+### Tab 6: Telemetría de Hardware, Memoria RAM y Rendimiento
+- **Monitor de Memoria RAM Heap:** Memoria en uso vs. memoria total asignada por la JVM de Android en Megabytes.
+- **Estimador de FPS y Render:** Monitor de tasa de refresco del Canvas dinámico.
+- **Diagnóstico WorkManager:** Estado y frecuencia de ejecución de las tareas en segundo plano del widget de escritorio.
+
+---
+
+## 🧠 6. Integración con Groq Cloud LLM (`GroqBioclimaticAdvisor.kt`)
+
+### Modelo e Inferencia de Ultrabaja Latencia (Llama 3.3 70B)
 
 Para enriquecer la recomendación matemática local con una redacción natural, fluida y persuasiva, la aplicación integra el modelo **Llama 3.3 70B Versatile** alojado en la infraestructura de **Groq Cloud**. La tasa de generación supera los **300 tokens por segundo**, logrando tiempos de respuesta completos inferiores a **400 ms**.
 
-### System Prompt Bioclimático y Directiva Causal
+### System Prompt Bioclimático y Directiva Causal Ultraconcisa
 
-El modelo opera bajo una directiva de ingeniería biomecánica estricta que prohíbe divagaciones o listas genéricas:
+El modelo opera bajo una directiva de ingeniería biomecánica estricta que prohíbe saludos genéricos y exige explicaciones directas de **máximo 2-3 frases**:
 
 ```text
 Eres el Asesor Bioclimático de Easy-Climate, un experto en fisiología térmica humana y textil técnico.
-Tu misión es recibir variables meteorológicas y biomecánicas procesadas en JSON y generar una recomendación
-de vestimenta de 20 a 30 palabras en español fluido y profesional.
+Tu misión es recibir variables meteorológicas, microclimáticas de OpenStreetMap y biomecánicas procesadas en JSON y generar una recomendación de vestimenta DIRECTA Y ULTRACONCISA (máximo 2-3 frases, sin saludos ni introducciones).
 
 REGLAS OBLIGATORIAS:
-1. EXPLICA LA CAUSA Y LA CONSECUENCIA: Menciona la razón física (ej. punto de rocío alto, viento urbano o
-   caída tras el ocaso) y la acción textil preventiva precisa (ej. poliéster técnico, cortavientos cerrado).
-2. NUNCA menciones marcas comerciales ni des saludos genéricos como "¡Hola!".
-3. PRIORIDAD AL PECHO Y VÍAS RESPIRATORIAS: Si deltaWindChill >= 3.0°C o viento >= 18 km/h con < 18°C,
-   exige protección pectoral cerrada para prevenir broncospasmos y enfriamiento torácico.
+1. EXPLICA LA CAUSA Y LA CONSECUENCIA: Menciona la razón física o microclimática (ej. brisa de río húmeda, sombra en cañón urbano, punto de rocío alto) y la acción textil preventiva precisa (ej. poliéster técnico, cortavientos cerrado).
+2. NUNCA menciones marcas comerciales ni des saludos como "¡Hola!".
+3. PRIORIDAD AL PECHO Y VÍAS RESPIRATORIAS: Si deltaWindChill >= 3.0°C o viento >= 18 km/h con < 18°C, exige protección pectoral cerrada para prevenir broncospasmos.
 4. PROSCRIBE EL ALGODÓN si hay riesgo de humedad o sudoración alta.
 ```
 
-### Esquema de Inyección de Contexto JSON
+### Inyección de Contexto Microclimático en el Prompt JSON
 
-El repositorio empaqueta las variables físicas calculadas y las inyecta en el prompt:
+El repositorio empaqueta las variables físicas calculadas y el contexto de OpenStreetMap:
 
 ```json
 {
@@ -382,19 +533,20 @@ El repositorio empaqueta las variables físicas calculadas y las inyecta en el p
   "deltaWindChill": 3.6,
   "solarGain": 2.8,
   "cloLevel": "0.75 CLO",
+  "microclimateContext": "Ribera / Masa de agua (+10% HR por evaporación ribereña)",
   "isHighSweatRisk": true,
   "isMandatoryChestProtection": true,
   "isSunsetDropRisk": true
 }
 ```
 
-### Mecanismo de Fallback Transparente
+### Mecanismo de Fallback Transparente a Cero Latencia
 
 Si el dispositivo no cuenta con conexión a internet, la API Key no está configurada o se produce un timeout en la red ($> 3000\text{ ms}$), el sistema realiza un **fallback instantáneo y silencioso a `BioclimaticClothingEngine.generateLocalRecommendation()`**, garantizando que el usuario jamás visualice una pantalla vacía o un error de conexión.
 
 ---
 
-## 🎨 5. Diseño de Interfaz Jetpack Compose M3 y Renderizado en Canvas
+## 🎨 7. Diseño de Interfaz Jetpack Compose M3 y Renderizado en Canvas
 
 ### Fondo Dinámico Reactivo Procedural (`AtmosphericWeatherBackground.kt`)
 
@@ -409,7 +561,7 @@ La aplicación no utiliza vídeos ni GIFs estáticos que degraden el rendimiento
 ### Arquitectura Visual Anti-Matrioska y Glassmorphism
 
 Siguiendo los principios más estrictos de diseño de interfaces modernas:
-1. **Contenedor Unificado (Anti-Matrioska):** Eliminación total de tarjetas anidadas con bordes amarillos/morados redundantes. Cada sección principal se estructura en un único `GlassCard` de radio amplio (`20.dp` / `24.dp`).
+1. **Contenedor Unificado (Anti-Matrioska):** Eliminación total de tarjetas anidadas con bordes redundantes. Cada sección principal se estructura en un único `GlassCard` de radio amplio (`20.dp` / `24.dp`).
 2. **Jerarquía por Espacio Negativo:** Separación elegante mediante padding generoso (`16.dp`), espaciado vertical (`12.dp`) y divisores lineales ultrafinos (`1.dp` con `Color.White.copy(alpha = 0.08f)`).
 3. **Paleta Cromática Funcional y Accesible:**
    - **Blanco Puro (`#FFFFFF`):** Reservado para títulos, temperaturas principales y nombres de prendas clave.
@@ -425,7 +577,7 @@ Siguiendo los principios más estrictos de diseño de interfaces modernas:
 
 ---
 
-## 📱 6. Widget de Escritorio Nativo de 3 Filas (Jetpack Glance & RemoteViews)
+## 📱 8. Widget de Escritorio Nativo de 3 Filas (Jetpack Glance & RemoteViews)
 
 Easy-Climate incluye un widget de escritorio de alta densidad informativa optimizado para formato de rejilla 2x2 y 4x2:
 
@@ -452,7 +604,7 @@ Easy-Climate incluye un widget de escritorio de alta densidad informativa optimi
 
 ---
 
-## ⚪ 7. Compatibilidad Adaptativa con Nothing OS & Material You
+## ⚪ 9. Compatibilidad Adaptativa con Nothing OS & Material You
 
 Easy-Climate incluye compatibilidad nativa con los estándares de diseño monocromático de **Nothing OS** y los esquemas dinámicos de **Android 12+ (Material You)**:
 
@@ -473,7 +625,7 @@ El icono de la aplicación cuenta con una capa monocromática vectorial optimiza
 
 ---
 
-## 🛠️ 8. Guía de Compilación, Pruebas y Despliegue
+## 🛠️ 10. Guía de Compilación, Pruebas y Despliegue
 
 ### Prerrequisitos de Entorno
 - **Android Studio:** Ladybug (2024.2.1) o superior.
@@ -508,7 +660,7 @@ gradle bundleRelease
 
 ---
 
-## 📄 9. Licencia de Uso 100% Gratuita y Open Source (MIT)
+## 📄 11. Licencia de Uso 100% Gratuita y Open Source (MIT)
 
 Este proyecto está publicado bajo la **Licencia MIT**, una licencia de software libre y de código abierto (Open Source) sumamente permisiva.
 

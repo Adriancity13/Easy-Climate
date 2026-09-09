@@ -98,6 +98,8 @@ fun WeatherScreen(
     val isSearchBoxVisible by viewModel.isSearchBoxVisible.collectAsState()
     val isBackgroundLocationGranted by viewModel.isBackgroundLocationGranted.collectAsState()
     var showBgPrompt by remember { mutableStateOf(true) }
+    var showPinDialog by remember { mutableStateOf(false) }
+    var showDevToolsModal by remember { mutableStateOf(false) }
 
     // Foreground Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -548,10 +550,32 @@ fun WeatherScreen(
                         weatherUI = state.currentWeather,
                         hourlyList = state.hourlyForecast,
                         dailyList = state.dailyForecast,
+                        onDevToolsClicked = { showPinDialog = true },
                         modifier = Modifier.weight(1f)
                     )
                 }
             }
+        }
+
+        // Diálogo de PIN de Seguridad para DevTools
+        if (showPinDialog) {
+            PinSecurityDialog(
+                onDismissRequest = { showPinDialog = false },
+                onPinSuccess = {
+                    showPinDialog = false
+                    showDevToolsModal = true
+                }
+            )
+        }
+
+        // Modal Completo de Consola de Administración y Diagnóstico
+        if (showDevToolsModal) {
+            val currentUi = (uiState as? WeatherUIState.Success)?.currentWeather
+            DevToolsAdminModal(
+                currentWeatherUI = currentUi,
+                viewModel = viewModel,
+                onDismissRequest = { showDevToolsModal = false }
+            )
         }
     }
 }
@@ -561,6 +585,7 @@ private fun MainWeatherContent(
     weatherUI: CurrentWeatherUI,
     hourlyList: List<com.example.data.models.HourlyItem>,
     dailyList: List<com.example.data.models.DailyItem>,
+    onDevToolsClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -919,15 +944,27 @@ private fun MainWeatherContent(
         // 4. 7-Day Forecast Accordions
         DailyForecastAccordionList(dailyItems = dailyList)
 
-        // 5. Version Footer
-        Text(
-            text = "Easy-Climate · Clima Atmosférico y UX Adaptable",
-            color = Color.White.copy(alpha = 0.60f),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Normal,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)
-        )
+        // 5. Version & DevTools Discrete Footer
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, bottom = 28.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Easy-Climate v1.0.0 · DevTools ⚙️",
+                color = Color.White.copy(alpha = 0.55f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onDevToolsClicked() }
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("devtools_footer_button")
+            )
+        }
     }
 }
 
