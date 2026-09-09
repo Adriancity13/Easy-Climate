@@ -28,7 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -67,7 +65,7 @@ fun HourlyForecastCarousel(
     val haptic = LocalHapticFeedback.current
     var selectedIndex by remember { mutableIntStateOf(0) }
 
-    // Subtle tactile haptic tick as the user scrolls across hourly forecast items
+    // Tactile haptic feedback on scroll
     var previousScrollIndex by remember { mutableIntStateOf(listState.firstVisibleItemIndex) }
     LaunchedEffect(listState.firstVisibleItemIndex) {
         if (listState.firstVisibleItemIndex != previousScrollIndex) {
@@ -76,7 +74,7 @@ fun HourlyForecastCarousel(
         }
     }
 
-    // Derive scroll progress for timeline bar
+    // Scroll progress for timeline bar
     val totalItems = hourlyItems.size
     val firstVisibleIndex by remember { derivedStateOf { listState.firstVisibleItemIndex } }
     val firstVisibleScrollOffset by remember { derivedStateOf { listState.firstVisibleItemScrollOffset } }
@@ -94,7 +92,7 @@ fun HourlyForecastCarousel(
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
-        // Header
+        // Section Header (Clean typography: Pure White + 70% opacity)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,10 +109,10 @@ fun HourlyForecastCarousel(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "(Toca una hora para centrar)",
-                    color = Color(0xFFFDE68A),
+                    text = "(Toca para centrar)",
+                    color = Color.White.copy(alpha = 0.70f),
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Normal
                 )
             }
 
@@ -122,9 +120,9 @@ fun HourlyForecastCarousel(
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .background(GlassPillColor, CircleShape)
-                        .border(1.dp, Color(0x66FFFFFF), CircleShape)
+                        .size(30.dp)
+                        .background(Color.White.copy(alpha = 0.10f), CircleShape)
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
                         .clip(CircleShape)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -140,15 +138,15 @@ fun HourlyForecastCarousel(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                         contentDescription = "Desplazar a la izquierda",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .background(GlassPillColor, CircleShape)
-                        .border(1.dp, Color(0x66FFFFFF), CircleShape)
+                        .size(30.dp)
+                        .background(Color.White.copy(alpha = 0.10f), CircleShape)
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
                         .clip(CircleShape)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -164,7 +162,7 @@ fun HourlyForecastCarousel(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Desplazar a la derecha",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
@@ -172,11 +170,11 @@ fun HourlyForecastCarousel(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Horizontal Row
+        // Horizontal Carousel (Highlights selected card with subtle higher opacity, NO yellow border)
         LazyRow(
             state = listState,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("hourly_scroll_list")
@@ -184,18 +182,18 @@ fun HourlyForecastCarousel(
             itemsIndexed(hourlyItems) { index, item ->
                 val isSelected = selectedIndex == index
                 val scale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.05f else 0.98f,
-                    animationSpec = tween(200),
+                    targetValue = if (isSelected) 1.03f else 1.0f,
+                    animationSpec = tween(150),
                     label = "hourlyCardScale"
                 )
                 val bgColor by animateColorAsState(
-                    targetValue = if (isSelected) Color(0x800F172A) else Color(0x480F172A),
-                    animationSpec = tween(200),
+                    targetValue = if (isSelected) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f),
+                    animationSpec = tween(150),
                     label = "hourlyCardBg"
                 )
                 val borderColor by animateColorAsState(
-                    targetValue = if (isSelected) Color(0xFFFDE047) else Color(0x38FFFFFF),
-                    animationSpec = tween(200),
+                    targetValue = if (isSelected) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                    animationSpec = tween(150),
                     label = "hourlyCardBorder"
                 )
 
@@ -204,19 +202,14 @@ fun HourlyForecastCarousel(
                 Box(
                     modifier = Modifier
                         .scale(scale)
-                        .width(74.dp)
-                        .shadow(
-                            elevation = if (isSelected) 8.dp else 2.dp,
-                            shape = RoundedCornerShape(18.dp),
-                            spotColor = if (isSelected) Color(0x60000000) else Color(0x20000000)
-                        )
-                        .background(color = bgColor, shape = RoundedCornerShape(18.dp))
+                        .width(72.dp)
+                        .background(color = bgColor, shape = RoundedCornerShape(16.dp))
                         .border(
-                            width = if (isSelected) 1.5.dp else 1.dp,
+                            width = 1.dp,
                             color = borderColor,
-                            shape = RoundedCornerShape(18.dp)
+                            shape = RoundedCornerShape(16.dp)
                         )
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -237,14 +230,14 @@ fun HourlyForecastCarousel(
                     ) {
                         Text(
                             text = item.label,
-                            color = if (isSelected) Color(0xFFFDE047) else Color.White,
+                            color = Color.White,
                             fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
 
                         WeatherConditionIcon(
                             iconType = iconType,
-                            size = if (isSelected) 24.dp else 22.dp,
+                            size = 22.dp,
                             tint = Color.White
                         )
 
@@ -252,14 +245,14 @@ fun HourlyForecastCarousel(
                             text = "${item.temp}°",
                             color = Color.White,
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.ExtraBold
+                            fontWeight = FontWeight.Bold
                         )
 
                         Text(
                             text = if (item.rainProb > 0) "${item.rainProb}%" else "·",
-                            color = if (item.rainProb > 0) Color(0xFF93C5FD) else Color(0x88FFFFFF),
+                            color = if (item.rainProb > 0) Color(0xFF93C5FD) else Color.White.copy(alpha = 0.40f),
                             fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
@@ -271,15 +264,15 @@ fun HourlyForecastCarousel(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 8.dp)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
-                    .background(Color(0x33FFFFFF), RoundedCornerShape(999.dp))
+                    .height(3.dp)
+                    .background(Color.White.copy(alpha = 0.12f), RoundedCornerShape(999.dp))
             ) {
-                // Thumb
+                // Progress indicator
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(fraction = progressFraction.coerceIn(0.05f, 1f))
@@ -287,11 +280,9 @@ fun HourlyForecastCarousel(
                     Box(
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
-                            .size(12.dp)
-                            .offset(x = 6.dp, y = (-4).dp)
-                            .shadow(4.dp, CircleShape, spotColor = Color.White)
+                            .size(9.dp)
+                            .offset(x = 4.dp, y = (-3).dp)
                             .background(Color.White, CircleShape)
-                            .border(1.dp, Color(0x88000000), CircleShape)
                     )
                 }
             }
@@ -302,9 +293,9 @@ fun HourlyForecastCarousel(
                     .padding(top = 4.dp, start = 2.dp, end = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Ahora", color = Color(0xB3FFFFFF), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                Text("+12 horas", color = Color(0xB3FFFFFF), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                Text("+24 horas", color = Color(0xB3FFFFFF), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Text("Ahora", color = Color.White.copy(alpha = 0.60f), fontSize = 10.sp, fontWeight = FontWeight.Normal)
+                Text("+12 horas", color = Color.White.copy(alpha = 0.60f), fontSize = 10.sp, fontWeight = FontWeight.Normal)
+                Text("+24 horas", color = Color.White.copy(alpha = 0.60f), fontSize = 10.sp, fontWeight = FontWeight.Normal)
             }
         }
     }

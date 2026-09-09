@@ -6,53 +6,44 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
-// Color tokens for glassmorphism
-val GlassColor = Color(0x600F172A)
-val GlassStrongColor = Color(0x720F172A)
-val GlassPillColor = Color(0x520F172A)
-val GlassBorderColor = Color(0x45FFFFFF)
-val GlassStrongBorderColor = Color(0x55FFFFFF)
-val RecommendationCardBg = Color(0x7A0F172A)
-val RecommendationCardBorder = Color(0x55FFFFFF)
-val RecommendationPillBg = Color(0x660F172A)
-val RecommendationPillBorder = Color(0x38FFFFFF)
+// Modern Clean Glassmorphism Design Tokens (Single-Layer architecture)
+val GlassColor = Color(0x380F172A)
+val GlassStrongColor = Color(0x480F172A)
+val GlassPillColor = Color(0x300F172A)
+val GlassBorderColor = Color(0x22FFFFFF)
+val GlassStrongBorderColor = Color(0x30FFFFFF)
+val SubduedDividerColor = Color(0x14FFFFFF) // Color.White.copy(alpha = 0.08f)
+
+val RecommendationCardBg = Color(0x3D0F172A)
+val RecommendationCardBorder = Color(0x28FFFFFF)
+val RecommendationPillBg = Color(0x1AFFFFFF)
+val RecommendationPillBorder = Color(0x18FFFFFF)
 
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(24.dp),
+    shape: Shape = RoundedCornerShape(20.dp),
     content: @Composable () -> Unit
 ) {
     Box(
         modifier = modifier
-            .shadow(elevation = 6.dp, shape = shape, spotColor = Color(0x30000000), ambientColor = Color(0x18000000))
+            .shadow(elevation = 4.dp, shape = shape, spotColor = Color(0x25000000), ambientColor = Color(0x10000000))
             .background(color = GlassColor, shape = shape)
             .border(width = 1.dp, color = GlassBorderColor, shape = shape)
             .clip(shape)
@@ -64,12 +55,12 @@ fun GlassCard(
 @Composable
 fun GlassStrongCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(28.dp),
+    shape: Shape = RoundedCornerShape(24.dp),
     content: @Composable () -> Unit
 ) {
     Box(
         modifier = modifier
-            .shadow(elevation = 10.dp, shape = shape, spotColor = Color(0x38000000), ambientColor = Color(0x20000000))
+            .shadow(elevation = 8.dp, shape = shape, spotColor = Color(0x30000000), ambientColor = Color(0x15000000))
             .background(color = GlassStrongColor, shape = shape)
             .border(width = 1.dp, color = GlassStrongBorderColor, shape = shape)
             .clip(shape)
@@ -87,7 +78,7 @@ fun GlassPill(
     Box(
         modifier = modifier
             .background(color = GlassPillColor, shape = shape)
-            .border(width = 1.dp, color = Color(0x4DFFFFFF), shape = shape)
+            .border(width = 1.dp, color = GlassBorderColor, shape = shape)
             .clip(shape)
     ) {
         content()
@@ -131,7 +122,7 @@ fun LiveLocationPulse(
         // Solid center dot
         Box(
             modifier = Modifier
-                .size(10.dp)
+                .size(9.dp)
                 .background(Color(0xFF10B981), shape = CircleShape)
                 .border(1.dp, Color.White.copy(alpha = 0.8f), CircleShape)
         )

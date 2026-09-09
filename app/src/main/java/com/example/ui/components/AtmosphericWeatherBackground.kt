@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import com.example.utils.SceneType
 import kotlin.math.sin
 import kotlin.random.Random
@@ -60,86 +59,75 @@ fun AtmosphericWeatherBackground(
     modifier: Modifier = Modifier
 ) {
     val topColor by animateColorAsState(
-        targetValue = gradientColors.firstOrNull() ?: Color(0xFF2B79E0),
-        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        targetValue = gradientColors.firstOrNull() ?: Color(0xFF2563EB),
+        animationSpec = tween(1000, easing = FastOutSlowInEasing),
         label = "topGrad"
     )
     val midColor by animateColorAsState(
-        targetValue = gradientColors.getOrNull(1) ?: Color(0xFF68B4F8),
-        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        targetValue = gradientColors.getOrNull(1) ?: Color(0xFF3B82F6),
+        animationSpec = tween(1000, easing = FastOutSlowInEasing),
         label = "midGrad"
     )
     val bottomColor by animateColorAsState(
-        targetValue = gradientColors.lastOrNull() ?: Color(0xFFBDE1FF),
-        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        targetValue = gradientColors.lastOrNull() ?: Color(0xFF60A5FA),
+        animationSpec = tween(1000, easing = FastOutSlowInEasing),
         label = "botGrad"
     )
 
     val transition = rememberInfiniteTransition(label = "AtmosphereAnim")
 
-    // General continuous time float (0f .. 1f) for cycling animations
+    // Slow continuous atmospheric loop
     val progressLoop by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(20000, easing = LinearEasing),
+            animation = tween(24000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "progressLoop"
     )
 
-    // Sun / Moon breath
-    val glowBreath by transition.animateFloat(
-        initialValue = 0.96f,
-        targetValue = 1.08f,
+    // Gentle sun/moon radiance pulsing
+    val glowPulse by transition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.06f,
         animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = FastOutSlowInEasing),
+            animation = tween(5000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "glowBreath"
+        label = "glowPulse"
     )
 
     // Twinkle for stars
     val starTwinkle by transition.animateFloat(
-        initialValue = 0.2f,
+        initialValue = 0.25f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2500, easing = FastOutSlowInEasing),
+            animation = tween(3000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "starTwinkle"
     )
 
-    // Storm lightning cycle (0..1 over 8 seconds)
+    // Lightning cycle
     val stormCycle by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = LinearEasing),
+            animation = tween(7500, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "stormCycle"
     )
 
-    // Fog sway
-    val fogSway by transition.animateFloat(
-        initialValue = -30f,
-        targetValue = 30f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(7000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "fogSway"
-    )
-
-    // Pre-calculated random particles for performance
+    // Pre-calculated star & particle specs
     val stars = remember {
         val r = Random(42)
-        List(35) {
+        List(30) {
             StarSpec(
                 xRatio = r.nextFloat() * 0.96f + 0.02f,
-                yRatio = r.nextFloat() * 0.50f + 0.02f,
-                sizeDp = r.nextFloat() * 2.2f + 1.2f,
+                yRatio = r.nextFloat() * 0.45f + 0.02f,
+                sizeDp = r.nextFloat() * 2f + 1.2f,
                 phaseOffset = r.nextFloat() * 6.28f,
                 periodSec = r.nextFloat() * 2.5f + 2f
             )
@@ -148,11 +136,11 @@ fun AtmosphericWeatherBackground(
 
     val rainDrops = remember {
         val r = Random(123)
-        List(42) {
+        List(36) {
             RainDropSpec(
                 xRatio = r.nextFloat(),
-                speed = r.nextFloat() * 0.4f + 0.8f,
-                length = r.nextFloat() * 12f + 14f,
+                speed = r.nextFloat() * 0.35f + 0.75f,
+                length = r.nextFloat() * 10f + 12f,
                 delayRatio = r.nextFloat()
             )
         }
@@ -160,13 +148,13 @@ fun AtmosphericWeatherBackground(
 
     val snowFlakes = remember {
         val r = Random(456)
-        List(32) {
+        List(28) {
             SnowflakeSpec(
                 xRatio = r.nextFloat(),
-                speed = r.nextFloat() * 0.3f + 0.5f,
-                size = r.nextFloat() * 3.5f + 2.5f,
-                driftAmp = r.nextFloat() * 18f + 10f,
-                driftSpeed = r.nextFloat() * 2f + 1.5f,
+                speed = r.nextFloat() * 0.25f + 0.45f,
+                size = r.nextFloat() * 3f + 2f,
+                driftAmp = r.nextFloat() * 16f + 8f,
+                driftSpeed = r.nextFloat() * 2f + 1.2f,
                 delayRatio = r.nextFloat()
             )
         }
@@ -187,100 +175,105 @@ fun AtmosphericWeatherBackground(
 
             when (sceneType) {
                 SceneType.CLEAR_DAY -> {
-                    drawClearDaySun(canvasW, canvasH, glowBreath)
+                    drawAtmosphericSunGlow(canvasW, canvasH, glowPulse)
                 }
                 SceneType.CLEAR_NIGHT -> {
-                    drawClearNightMoon(canvasW, canvasH, glowBreath)
-                    drawStars(canvasW, canvasH, stars, progressLoop, starTwinkle)
+                    drawAtmosphericMoon(canvasW, canvasH, glowPulse)
+                    drawAtmosphericStars(canvasW, canvasH, stars, progressLoop, starTwinkle)
                 }
                 SceneType.PARTLY_CLOUDY -> {
                     if (isDay) {
-                        drawClearDaySun(canvasW, canvasH, glowBreath, scale = 0.8f)
+                        drawAtmosphericSunGlow(canvasW, canvasH, glowPulse, scale = 0.8f)
                     } else {
-                        drawClearNightMoon(canvasW, canvasH, glowBreath, scale = 0.8f)
+                        drawAtmosphericMoon(canvasW, canvasH, glowPulse, scale = 0.8f)
+                        drawAtmosphericStars(canvasW, canvasH, stars.take(15), progressLoop, starTwinkle)
                     }
-                    drawFloatingClouds(canvasW, canvasH, progressLoop, count = 2)
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.5f)
                 }
                 SceneType.CLOUDY -> {
-                    drawFloatingClouds(canvasW, canvasH, progressLoop, count = 3)
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.85f)
                 }
                 SceneType.DRIZZLE -> {
-                    drawFloatingClouds(canvasW, canvasH, progressLoop, count = 2, opacity = 0.65f)
-                    drawRain(canvasW, canvasH, rainDrops, progressLoop * 4f, isDrizzle = true)
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.7f)
+                    drawAtmosphericRain(canvasW, canvasH, rainDrops, progressLoop * 4f, isDrizzle = true)
                 }
                 SceneType.RAIN -> {
-                    drawFloatingClouds(canvasW, canvasH, progressLoop, count = 2, opacity = 0.8f)
-                    drawRain(canvasW, canvasH, rainDrops, progressLoop * 5f, isDrizzle = false)
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.85f)
+                    drawAtmosphericRain(canvasW, canvasH, rainDrops, progressLoop * 5.5f, isDrizzle = false)
                 }
                 SceneType.STORM -> {
-                    drawStormLightning(canvasW, canvasH, stormCycle)
-                    drawFloatingClouds(canvasW, canvasH, progressLoop, count = 2, opacity = 0.85f, cloudColor = Color(0xB0DCE6F2))
-                    drawRain(canvasW, canvasH, rainDrops, progressLoop * 6f, isDrizzle = false)
+                    drawAtmosphericStorm(canvasW, canvasH, stormCycle)
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.95f)
+                    drawAtmosphericRain(canvasW, canvasH, rainDrops, progressLoop * 6.5f, isDrizzle = false)
                 }
                 SceneType.SNOW -> {
-                    drawFloatingClouds(canvasW, canvasH, progressLoop, count = 1, opacity = 0.7f)
-                    drawSnow(canvasW, canvasH, snowFlakes, progressLoop * 2.5f)
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.65f)
+                    drawAtmosphericSnow(canvasW, canvasH, snowFlakes, progressLoop * 2.5f)
                 }
                 SceneType.FOG -> {
-                    drawFog(canvasW, canvasH, fogSway)
+                    drawAtmosphericFog(canvasW, canvasH, progressLoop)
                 }
             }
         }
     }
 }
 
-private fun DrawScope.drawClearDaySun(canvasW: Float, canvasH: Float, breath: Float, scale: Float = 1.0f) {
+// Gentle ambient sun aura without overwhelming foreground content
+private fun DrawScope.drawAtmosphericSunGlow(canvasW: Float, canvasH: Float, pulse: Float, scale: Float = 1.0f) {
     val sunCenterX = canvasW * 0.85f
-    val sunCenterY = 90f
-    val baseRadius = 42f * scale
+    val sunCenterY = canvasH * 0.12f
+    val baseRadius = 55f * scale
 
-    // Outer aura
+    // Atmospheric wide halo
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0x60FFF59D),
-                Color(0x30FFF59D),
+                Color(0x35FEF08A),
+                Color(0x18FDE047),
+                Color(0x05FDE047),
                 Color.Transparent
             ),
             center = Offset(sunCenterX, sunCenterY),
-            radius = baseRadius * 2.8f * breath
+            radius = baseRadius * 3.5f * pulse
         ),
-        radius = baseRadius * 2.8f * breath,
+        radius = baseRadius * 3.5f * pulse,
         center = Offset(sunCenterX, sunCenterY)
     )
 
-    // Inner glow
+    // Radiant soft sun core
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFFFFF9C4),
-                Color(0xFFFBC02D)
+                Color(0xEEFFFBEB),
+                Color(0xBAFDE047),
+                Color(0x00FDE047)
             ),
             center = Offset(sunCenterX, sunCenterY),
-            radius = baseRadius * breath
+            radius = baseRadius * pulse
         ),
-        radius = baseRadius * breath,
+        radius = baseRadius * pulse,
         center = Offset(sunCenterX, sunCenterY)
     )
 }
 
-private fun DrawScope.drawClearNightMoon(canvasW: Float, canvasH: Float, breath: Float, scale: Float = 1.0f) {
-    val moonCenterX = canvasW * 0.84f
-    val moonCenterY = 90f
-    val radius = 34f * scale
+// Clean minimalist night moon
+private fun DrawScope.drawAtmosphericMoon(canvasW: Float, canvasH: Float, pulse: Float, scale: Float = 1.0f) {
+    val moonCenterX = canvasW * 0.85f
+    val moonCenterY = canvasH * 0.12f
+    val radius = 32f * scale
 
-    // Moon soft aura
+    // Moon soft glow
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0x40FFFFFF),
-                Color(0x15E2E8F0),
+                Color(0x28CBD5E1),
+                Color(0x0DCBD5E1),
                 Color.Transparent
             ),
             center = Offset(moonCenterX, moonCenterY),
-            radius = radius * 2.2f * breath
+            radius = radius * 2.6f * pulse
         ),
-        radius = radius * 2.2f * breath,
+        radius = radius * 2.6f * pulse,
         center = Offset(moonCenterX, moonCenterY)
     )
 
@@ -288,9 +281,9 @@ private fun DrawScope.drawClearNightMoon(canvasW: Float, canvasH: Float, breath:
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFFFFFFFF),
+                Color(0xFFF8FAFC),
                 Color(0xFFE2E8F0),
-                Color(0xFFCBD5E1)
+                Color(0xFF94A3B8)
             ),
             center = Offset(moonCenterX - radius * 0.2f, moonCenterY - radius * 0.2f),
             radius = radius
@@ -300,7 +293,8 @@ private fun DrawScope.drawClearNightMoon(canvasW: Float, canvasH: Float, breath:
     )
 }
 
-private fun DrawScope.drawStars(
+// Subtle twinkle stars
+private fun DrawScope.drawAtmosphericStars(
     canvasW: Float,
     canvasH: Float,
     stars: List<StarSpec>,
@@ -310,101 +304,98 @@ private fun DrawScope.drawStars(
     for (s in stars) {
         val x = s.xRatio * canvasW
         val y = s.yRatio * canvasH
-        val alpha = ((sin(loopTime * s.periodSec * 6.28f + s.phaseOffset) + 1f) / 2f * 0.7f + 0.2f) * twinkle
+        val alpha = ((sin(loopTime * s.periodSec * 6.28f + s.phaseOffset) + 1f) / 2f * 0.6f + 0.2f) * twinkle
         drawCircle(
-            color = Color.White.copy(alpha = alpha.coerceIn(0.1f, 0.95f)),
+            color = Color.White.copy(alpha = alpha.coerceIn(0.1f, 0.85f)),
             radius = s.sizeDp,
             center = Offset(x, y)
         )
     }
 }
 
-private fun DrawScope.drawFloatingClouds(
+// Continuous stylized atmospheric cloud layers (integrates smoothly across the canvas)
+private fun DrawScope.drawContinuousCloudLayer(
     canvasW: Float,
     canvasH: Float,
     loop: Float,
-    count: Int,
-    opacity: Float = 0.7f,
-    cloudColor: Color = Color(0xAEFFFFFF)
+    density: Float
 ) {
-    val cloudsConfig = listOf(
-        Triple(0.08f, 0.55f * opacity, 180f),  // yRatio, alpha, width
-        Triple(0.15f, 0.75f * opacity, 230f),
-        Triple(0.24f, 0.65f * opacity, 190f)
-    )
+    val waveOffset1 = sin(loop * 6.28f) * 15f
+    val waveOffset2 = sin((loop + 0.33f) * 6.28f) * 18f
 
-    for (i in 0 until count.coerceAtMost(cloudsConfig.size)) {
-        val (yRatio, alpha, cWidth) = cloudsConfig[i]
-        val speedFactor = when (i) {
-            0 -> 0.7f
-            1 -> 1.0f
-            else -> 1.3f
-        }
-        val totalDistance = canvasW + cWidth * 2f
-        val currentX = ((loop * speedFactor * totalDistance) % totalDistance) - cWidth
-        val y = canvasH * yRatio
-
-        drawSingleCloud(currentX, y, cWidth, cloudColor.copy(alpha = alpha))
+    // Layer 1 (Back atmospheric cloud horizon)
+    val path1 = Path().apply {
+        moveTo(0f, canvasH * 0.28f + waveOffset1)
+        cubicTo(
+            canvasW * 0.25f, canvasH * 0.22f + waveOffset1,
+            canvasW * 0.50f, canvasH * 0.32f - waveOffset1,
+            canvasW * 0.75f, canvasH * 0.24f + waveOffset1
+        )
+        cubicTo(
+            canvasW * 0.90f, canvasH * 0.26f,
+            canvasW, canvasH * 0.20f,
+            canvasW, canvasH * 0.28f + waveOffset1
+        )
+        lineTo(canvasW, 0f)
+        lineTo(0f, 0f)
+        close()
     }
-}
+    drawPath(
+        path = path1,
+        color = Color.White.copy(alpha = 0.08f * density)
+    )
 
-private fun DrawScope.drawSingleCloud(x: Float, y: Float, width: Float, color: Color) {
-    val height = width * 0.45f
-    // High-performance zero-allocation cloud rendering for 120Hz displays
-    drawRoundRect(
-        color = color,
-        topLeft = Offset(x + width * 0.12f, y + height * 0.42f),
-        size = Size(width * 0.76f, height * 0.48f),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(height * 0.24f, height * 0.24f)
-    )
-    drawCircle(
-        color = color,
-        radius = height * 0.32f,
-        center = Offset(x + width * 0.28f, y + height * 0.52f)
-    )
-    drawCircle(
-        color = color,
-        radius = height * 0.44f,
-        center = Offset(x + width * 0.50f, y + height * 0.42f)
-    )
-    drawCircle(
-        color = color,
-        radius = height * 0.34f,
-        center = Offset(x + width * 0.72f, y + height * 0.50f)
+    // Layer 2 (Mid atmospheric cloud contour)
+    val path2 = Path().apply {
+        moveTo(0f, canvasH * 0.18f + waveOffset2)
+        cubicTo(
+            canvasW * 0.30f, canvasH * 0.24f - waveOffset2,
+            canvasW * 0.65f, canvasH * 0.14f + waveOffset2,
+            canvasW, canvasH * 0.22f - waveOffset2
+        )
+        lineTo(canvasW, 0f)
+        lineTo(0f, 0f)
+        close()
+    }
+    drawPath(
+        path = path2,
+        color = Color.White.copy(alpha = 0.10f * density)
     )
 }
 
-private fun DrawScope.drawRain(
+// Subtle rain streaks
+private fun DrawScope.drawAtmosphericRain(
     canvasW: Float,
     canvasH: Float,
     drops: List<RainDropSpec>,
     timeLoop: Float,
     isDrizzle: Boolean
 ) {
-    val dropWidth = if (isDrizzle) 1.5f else 2.2f
-    val dropColor = if (isDrizzle) Color(0x55FFFFFF) else Color(0x88FFFFFF)
+    val strokeW = if (isDrizzle) 1.2f else 1.8f
+    val baseAlpha = if (isDrizzle) 0.35f else 0.55f
 
     for (d in drops) {
         val cycle = (timeLoop * d.speed + d.delayRatio) % 1.0f
-        val y = cycle * (canvasH + 50f) - 30f
-        val x = (d.xRatio * canvasW) - (y * 0.15f) // -10 degree tilt
-        val len = if (isDrizzle) d.length * 0.65f else d.length
+        val y = cycle * (canvasH + 40f) - 20f
+        val x = (d.xRatio * canvasW) - (y * 0.12f)
+        val len = if (isDrizzle) d.length * 0.7f else d.length
 
         drawLine(
             brush = Brush.verticalGradient(
-                colors = listOf(Color.Transparent, dropColor),
+                colors = listOf(Color.Transparent, Color.White.copy(alpha = baseAlpha)),
                 startY = y,
                 endY = y + len
             ),
             start = Offset(x, y),
-            end = Offset(x - len * 0.17f, y + len),
-            strokeWidth = dropWidth,
+            end = Offset(x - len * 0.14f, y + len),
+            strokeWidth = strokeW,
             cap = StrokeCap.Round
         )
     }
 }
 
-private fun DrawScope.drawSnow(
+// Subtle falling snow
+private fun DrawScope.drawAtmosphericSnow(
     canvasW: Float,
     canvasH: Float,
     flakes: List<SnowflakeSpec>,
@@ -412,56 +403,56 @@ private fun DrawScope.drawSnow(
 ) {
     for (f in flakes) {
         val cycle = (timeLoop * f.speed + f.delayRatio) % 1.0f
-        val y = cycle * (canvasH + 40f) - 20f
+        val y = cycle * (canvasH + 30f) - 15f
         val drift = sin(cycle * f.driftSpeed * 6.28f) * f.driftAmp
         val x = (f.xRatio * canvasW) + drift
 
         drawCircle(
-            color = Color.White.copy(alpha = 0.85f),
+            color = Color.White.copy(alpha = 0.65f),
             radius = f.size,
             center = Offset(x, y)
         )
     }
 }
 
-private fun DrawScope.drawStormLightning(canvasW: Float, canvasH: Float, cycle: Float) {
-    // Lightning strikes at specific timing intervals in the 8s cycle (e.g. 0.94 .. 0.96)
-    val isFlashing = cycle in 0.938f..0.965f
+// Lightning strike effect for storm
+private fun DrawScope.drawAtmosphericStorm(canvasW: Float, canvasH: Float, cycle: Float) {
+    val isFlashing = cycle in 0.940f..0.965f
     if (isFlashing) {
-        // Flash overlay
-        val flashAlpha = if (cycle in 0.94f..0.946f || cycle in 0.952f..0.958f) 0.28f else 0.08f
+        val flashAlpha = if (cycle in 0.942f..0.948f || cycle in 0.954f..0.960f) 0.22f else 0.06f
         drawRect(Color.White.copy(alpha = flashAlpha))
 
-        // Bolt
-        val boltX = canvasW * 0.35f
-        val boltY = 60f
+        val boltX = canvasW * 0.38f
+        val boltY = 50f
         val path = Path().apply {
-            moveTo(boltX + 30f, boltY)
-            lineTo(boltX + 5f, boltY + 60f)
-            lineTo(boltX + 26f, boltY + 60f)
-            lineTo(boltX + 15f, boltY + 130f)
-            lineTo(boltX + 45f, boltY + 75f)
-            lineTo(boltX + 28f, boltY + 75f)
+            moveTo(boltX + 25f, boltY)
+            lineTo(boltX + 5f, boltY + 50f)
+            lineTo(boltX + 22f, boltY + 50f)
+            lineTo(boltX + 12f, boltY + 110f)
+            lineTo(boltX + 38f, boltY + 65f)
+            lineTo(boltX + 24f, boltY + 65f)
             close()
         }
-        drawPath(path, Color(0xF2FFF9C4))
+        drawPath(path, Color(0xD0FEF08A))
     }
 }
 
-private fun DrawScope.drawFog(canvasW: Float, canvasH: Float, sway: Float) {
+// Gentle continuous fog layer
+private fun DrawScope.drawAtmosphericFog(canvasW: Float, canvasH: Float, loop: Float) {
+    val sway = sin(loop * 6.28f) * 25f
     drawRect(
         brush = Brush.verticalGradient(
             colors = listOf(
                 Color.Transparent,
-                Color(0x35FFFFFF),
-                Color(0x45FFFFFF),
-                Color(0x20FFFFFF),
+                Color.White.copy(alpha = 0.12f),
+                Color.White.copy(alpha = 0.18f),
+                Color.White.copy(alpha = 0.08f),
                 Color.Transparent
             ),
-            startY = canvasH * 0.1f,
-            endY = canvasH * 0.9f
+            startY = canvasH * 0.15f,
+            endY = canvasH * 0.85f
         ),
         topLeft = Offset(sway, 0f),
-        size = Size(canvasW + 60f, canvasH)
+        size = Size(canvasW + 50f, canvasH)
     )
 }

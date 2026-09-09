@@ -35,15 +35,21 @@ data class WmoConfig(
 object WeatherUtils {
 
     private val defaultGradDay = listOf(
-        Color(0xFF2B79E0),
-        Color(0xFF68B4F8),
-        Color(0xFFBDE1FF)
+        Color(0xFF2563EB),
+        Color(0xFF3B82F6),
+        Color(0xFF60A5FA)
+    )
+
+    private val defaultGradSunset = listOf(
+        Color(0xFF4C1D95),
+        Color(0xFF9333EA),
+        Color(0xFFF97316)
     )
 
     private val defaultGradNight = listOf(
-        Color(0xFF090F26),
-        Color(0xFF151F42),
-        Color(0xFF1E2C5E)
+        Color(0xFF0F172A),
+        Color(0xFF1E293B),
+        Color(0xFF334155)
     )
 
     private val wmoConfigs = mapOf(
@@ -54,8 +60,8 @@ object WeatherUtils {
             sceneNight = SceneType.CLEAR_NIGHT,
             iconDay = "sun",
             iconNight = "moon",
-            gradDay = listOf(Color(0xFF2B79E0), Color(0xFF68B4F8), Color(0xFFBDE1FF)),
-            gradNight = listOf(Color(0xFF090F26), Color(0xFF151F42), Color(0xFF1E2C5E))
+            gradDay = listOf(Color(0xFF2563EB), Color(0xFF3B82F6), Color(0xFF60A5FA)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         1 to WmoConfig(
             code = 1,
@@ -64,8 +70,8 @@ object WeatherUtils {
             sceneNight = SceneType.PARTLY_CLOUDY,
             iconDay = "cloud-sun",
             iconNight = "cloud-moon",
-            gradDay = listOf(Color(0xFF3782E4), Color(0xFF76BBF8), Color(0xFFC4E4FF)),
-            gradNight = listOf(Color(0xFF0E1533), Color(0xFF1C2752), Color(0xFF293A73))
+            gradDay = listOf(Color(0xFF2563EB), Color(0xFF4B90FA), Color(0xFF74B4FB)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         2 to WmoConfig(
             code = 2,
@@ -74,8 +80,8 @@ object WeatherUtils {
             sceneNight = SceneType.PARTLY_CLOUDY,
             iconDay = "cloud-sun",
             iconNight = "cloud-moon",
-            gradDay = listOf(Color(0xFF4489DF), Color(0xFF7DBEF7), Color(0xFFCAE5FD)),
-            gradNight = listOf(Color(0xFF101938), Color(0xFF1E2C5A), Color(0xFF2B3D75))
+            gradDay = listOf(Color(0xFF2B6DEB), Color(0xFF5296F8), Color(0xFF80BAFA)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         3 to WmoConfig(
             code = 3,
@@ -84,8 +90,8 @@ object WeatherUtils {
             sceneNight = SceneType.CLOUDY,
             iconDay = "cloud",
             iconNight = "cloud",
-            gradDay = listOf(Color(0xFF4D6782), Color(0xFF708AA8), Color(0xFFA6BBD1)),
-            gradNight = listOf(Color(0xFF141B29), Color(0xFF202B3E), Color(0xFF303E54))
+            gradDay = listOf(Color(0xFF1E293B), Color(0xFF334155), Color(0xFF475569)),
+            gradNight = listOf(Color(0xFF0B0F19), Color(0xFF111827), Color(0xFF1F2937))
         ),
         45 to WmoConfig(
             code = 45,
@@ -94,8 +100,8 @@ object WeatherUtils {
             sceneNight = SceneType.FOG,
             iconDay = "cloud-fog",
             iconNight = "cloud-fog",
-            gradDay = listOf(Color(0xFF647585), Color(0xFF8B9BAA), Color(0xFFBCC7D1)),
-            gradNight = listOf(Color(0xFF19202A), Color(0xFF293340), Color(0xFF3C4856))
+            gradDay = listOf(Color(0xFF334155), Color(0xFF475569), Color(0xFF64748B)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         48 to WmoConfig(
             code = 48,
@@ -104,8 +110,8 @@ object WeatherUtils {
             sceneNight = SceneType.FOG,
             iconDay = "cloud-fog",
             iconNight = "cloud-fog",
-            gradDay = listOf(Color(0xFF617382), Color(0xFF8797A7), Color(0xFFB8C5CE)),
-            gradNight = listOf(Color(0xFF181F29), Color(0xFF26303D), Color(0xFF384552))
+            gradDay = listOf(Color(0xFF334155), Color(0xFF475569), Color(0xFF64748B)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         51 to WmoConfig(
             code = 51,
@@ -114,8 +120,8 @@ object WeatherUtils {
             sceneNight = SceneType.DRIZZLE,
             iconDay = "cloud-drizzle",
             iconNight = "cloud-drizzle",
-            gradDay = listOf(Color(0xFF3D5670), Color(0xFF5D7792), Color(0xFF8EA5BD)),
-            gradNight = listOf(Color(0xFF131A26), Color(0xFF1D2737), Color(0xFF2A384E))
+            gradDay = listOf(Color(0xFF1E293B), Color(0xFF334155), Color(0xFF475569)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         53 to WmoConfig(
             code = 53,
@@ -124,8 +130,8 @@ object WeatherUtils {
             sceneNight = SceneType.DRIZZLE,
             iconDay = "cloud-drizzle",
             iconNight = "cloud-drizzle",
-            gradDay = listOf(Color(0xFF39506B), Color(0xFF57708B), Color(0xFF879EB5)),
-            gradNight = listOf(Color(0xFF121824), Color(0xFF1B2433), Color(0xFF273448))
+            gradDay = listOf(Color(0xFF1E293B), Color(0xFF334155), Color(0xFF475569)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         55 to WmoConfig(
             code = 55,
@@ -134,8 +140,8 @@ object WeatherUtils {
             sceneNight = SceneType.DRIZZLE,
             iconDay = "cloud-drizzle",
             iconNight = "cloud-drizzle",
-            gradDay = listOf(Color(0xFF344A63), Color(0xFF516982), Color(0xFF7E94AB)),
-            gradNight = listOf(Color(0xFF101621), Color(0xFF18212E), Color(0xFF232F41))
+            gradDay = listOf(Color(0xFF1E293B), Color(0xFF334155), Color(0xFF475569)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         61 to WmoConfig(
             code = 61,
@@ -144,8 +150,8 @@ object WeatherUtils {
             sceneNight = SceneType.RAIN,
             iconDay = "cloud-rain",
             iconNight = "cloud-rain",
-            gradDay = listOf(Color(0xFF30455C), Color(0xFF4C647C), Color(0xFF758CA2)),
-            gradNight = listOf(Color(0xFF0E141E), Color(0xFF161E2B), Color(0xFF212C3D))
+            gradDay = listOf(Color(0xFF1E293B), Color(0xFF334155), Color(0xFF475569)),
+            gradNight = listOf(Color(0xFF090D16), Color(0xFF0F172A), Color(0xFF1E293B))
         ),
         63 to WmoConfig(
             code = 63,
@@ -154,8 +160,8 @@ object WeatherUtils {
             sceneNight = SceneType.RAIN,
             iconDay = "cloud-rain",
             iconNight = "cloud-rain",
-            gradDay = listOf(Color(0xFF2B3E52), Color(0xFF44596E), Color(0xFF6A7F94)),
-            gradNight = listOf(Color(0xFF0B1019), Color(0xFF131924), Color(0xFF1D2534))
+            gradDay = listOf(Color(0xFF172554), Color(0xFF1E293B), Color(0xFF334155)),
+            gradNight = listOf(Color(0xFF090D16), Color(0xFF0F172A), Color(0xFF1E293B))
         ),
         65 to WmoConfig(
             code = 65,
@@ -164,8 +170,8 @@ object WeatherUtils {
             sceneNight = SceneType.RAIN,
             iconDay = "cloud-rain",
             iconNight = "cloud-rain",
-            gradDay = listOf(Color(0xFF243547), Color(0xFF3A4D5F), Color(0xFF5D6F80)),
-            gradNight = listOf(Color(0xFF090E15), Color(0xFF10161F), Color(0xFF18202C))
+            gradDay = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155)),
+            gradNight = listOf(Color(0xFF05080E), Color(0xFF0B0F19), Color(0xFF111827))
         ),
         71 to WmoConfig(
             code = 71,
@@ -174,8 +180,8 @@ object WeatherUtils {
             sceneNight = SceneType.SNOW,
             iconDay = "snowflake",
             iconNight = "snowflake",
-            gradDay = listOf(Color(0xFF4F6880), Color(0xFF7A95AE), Color(0xFFB8CBDB)),
-            gradNight = listOf(Color(0xFF151D29), Color(0xFF232F3F), Color(0xFF354457))
+            gradDay = listOf(Color(0xFF334155), Color(0xFF475569), Color(0xFF64748B)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         73 to WmoConfig(
             code = 73,
@@ -184,8 +190,8 @@ object WeatherUtils {
             sceneNight = SceneType.SNOW,
             iconDay = "snowflake",
             iconNight = "snowflake",
-            gradDay = listOf(Color(0xFF4A637A), Color(0xFF728CA4), Color(0xFFADBFCF)),
-            gradNight = listOf(Color(0xFF131A25), Color(0xFF202B3A), Color(0xFF303E50))
+            gradDay = listOf(Color(0xFF334155), Color(0xFF475569), Color(0xFF64748B)),
+            gradNight = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155))
         ),
         75 to WmoConfig(
             code = 75,
@@ -194,8 +200,8 @@ object WeatherUtils {
             sceneNight = SceneType.SNOW,
             iconDay = "snowflake",
             iconNight = "snowflake",
-            gradDay = listOf(Color(0xFF42596E), Color(0xFF687F96), Color(0xFF9FAEC0)),
-            gradNight = listOf(Color(0xFF101720), Color(0xFF1B2532), Color(0xFF293645))
+            gradDay = listOf(Color(0xFF1E293B), Color(0xFF334155), Color(0xFF475569)),
+            gradNight = listOf(Color(0xFF090D16), Color(0xFF0F172A), Color(0xFF1E293B))
         ),
         80 to WmoConfig(
             code = 80,
@@ -204,8 +210,8 @@ object WeatherUtils {
             sceneNight = SceneType.RAIN,
             iconDay = "cloud-rain",
             iconNight = "cloud-rain",
-            gradDay = listOf(Color(0xFF354C64), Color(0xFF546D87), Color(0xFF8198B0)),
-            gradNight = listOf(Color(0xFF111822), Color(0xFF1A2330), Color(0xFF263345))
+            gradDay = listOf(Color(0xFF1E293B), Color(0xFF334155), Color(0xFF475569)),
+            gradNight = listOf(Color(0xFF090D16), Color(0xFF0F172A), Color(0xFF1E293B))
         ),
         81 to WmoConfig(
             code = 81,
@@ -214,8 +220,8 @@ object WeatherUtils {
             sceneNight = SceneType.RAIN,
             iconDay = "cloud-rain",
             iconNight = "cloud-rain",
-            gradDay = listOf(Color(0xFF2D4156), Color(0xFF496078), Color(0xFF70869D)),
-            gradNight = listOf(Color(0xFF0D131C), Color(0xFF151C27), Color(0xFF202B3B))
+            gradDay = listOf(Color(0xFF1E293B), Color(0xFF334155), Color(0xFF475569)),
+            gradNight = listOf(Color(0xFF090D16), Color(0xFF0F172A), Color(0xFF1E293B))
         ),
         82 to WmoConfig(
             code = 82,
@@ -224,8 +230,8 @@ object WeatherUtils {
             sceneNight = SceneType.STORM,
             iconDay = "zap",
             iconNight = "zap",
-            gradDay = listOf(Color(0xFF212C38), Color(0xFF344252), Color(0xFF526274)),
-            gradNight = listOf(Color(0xFF080C12), Color(0xFF0E141C), Color(0xFF161E29))
+            gradDay = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155)),
+            gradNight = listOf(Color(0xFF030712), Color(0xFF0B0F19), Color(0xFF111827))
         ),
         95 to WmoConfig(
             code = 95,
@@ -234,8 +240,8 @@ object WeatherUtils {
             sceneNight = SceneType.STORM,
             iconDay = "zap",
             iconNight = "zap",
-            gradDay = listOf(Color(0xFF1B2430), Color(0xFF2C3848), Color(0xFF465568)),
-            gradNight = listOf(Color(0xFF070A0F), Color(0xFF0C1117), Color(0xFF131922))
+            gradDay = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155)),
+            gradNight = listOf(Color(0xFF030712), Color(0xFF0B0F19), Color(0xFF111827))
         ),
         96 to WmoConfig(
             code = 96,
@@ -244,8 +250,8 @@ object WeatherUtils {
             sceneNight = SceneType.STORM,
             iconDay = "zap",
             iconNight = "zap",
-            gradDay = listOf(Color(0xFF17202B), Color(0xFF26323F), Color(0xFF3F4C5C)),
-            gradNight = listOf(Color(0xFF05080C), Color(0xFF0A0D13), Color(0xFF10151C))
+            gradDay = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155)),
+            gradNight = listOf(Color(0xFF030712), Color(0xFF0B0F19), Color(0xFF111827))
         ),
         99 to WmoConfig(
             code = 99,
@@ -254,16 +260,37 @@ object WeatherUtils {
             sceneNight = SceneType.STORM,
             iconDay = "zap",
             iconNight = "zap",
-            gradDay = listOf(Color(0xFF141C26), Color(0xFF212A36), Color(0xFF374352)),
-            gradNight = listOf(Color(0xFF040609), Color(0xFF080B0F), Color(0xFF0D1117))
+            gradDay = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155)),
+            gradNight = listOf(Color(0xFF030712), Color(0xFF0B0F19), Color(0xFF111827))
         )
     )
+
+    fun isSunsetPeriod(sunsetStr: String?): Boolean {
+        if (sunsetStr.isNullOrBlank() || !sunsetStr.contains(":")) return false
+        return try {
+            val parts = sunsetStr.trim().split(":")
+            val sunsetHour = parts[0].toIntOrNull() ?: return false
+            val sunsetMin = parts.getOrNull(1)?.toIntOrNull() ?: 0
+            val sunsetTotalMin = sunsetHour * 60 + sunsetMin
+
+            val cal = Calendar.getInstance()
+            val currentTotalMin = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+
+            // Sunset window: 45 minutes before to 45 minutes after sunset
+            kotlin.math.abs(currentTotalMin - sunsetTotalMin) <= 45
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     fun getWmoConfig(code: Int): WmoConfig {
         return wmoConfigs[code] ?: wmoConfigs[0]!!
     }
 
-    fun getGradient(code: Int, isDay: Boolean): List<Color> {
+    fun getGradient(code: Int, isDay: Boolean, isSunset: Boolean = false): List<Color> {
+        if (isSunset && (code <= 2)) {
+            return defaultGradSunset
+        }
         val config = getWmoConfig(code)
         return if (isDay) config.gradDay else config.gradNight
     }

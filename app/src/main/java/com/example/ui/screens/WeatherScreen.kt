@@ -79,14 +79,9 @@ import com.example.ui.components.GlassStrongCard
 import com.example.ui.components.GlassStrongColor
 import com.example.ui.components.HourlyForecastCarousel
 import com.example.ui.components.LiveLocationPulse
-import com.example.ui.components.RecommendationCardBg
-import com.example.ui.components.RecommendationCardBorder
-import com.example.ui.components.RecommendationPillBg
-import com.example.ui.components.RecommendationPillBorder
 import com.example.ui.components.WeatherConditionIcon
 import com.example.ui.viewmodel.WeatherUIState
 import com.example.ui.viewmodel.WeatherViewModel
-import com.example.utils.SceneType
 import com.example.utils.WeatherUtils
 
 @Composable
@@ -127,8 +122,18 @@ fun WeatherScreen(
         else -> Pair(0, true)
     }
 
-    val gradientColors = WeatherUtils.getGradient(weatherCode, isDay)
-    val sceneType = WeatherUtils.getSceneType(weatherCode, isDay)
+    val isSunset = remember(uiState) {
+        if (uiState is WeatherUIState.Success) {
+            WeatherUtils.isSunsetPeriod((uiState as WeatherUIState.Success).currentWeather.sunset)
+        } else false
+    }
+
+    val gradientColors = remember(weatherCode, isDay, isSunset) {
+        WeatherUtils.getGradient(weatherCode, isDay, isSunset)
+    }
+    val sceneType = remember(weatherCode, isDay) {
+        WeatherUtils.getSceneType(weatherCode, isDay)
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         // Dynamic Atmospheric Animated Background
@@ -158,7 +163,7 @@ fun WeatherScreen(
             ) {
                 Text(
                     text = dateText,
-                    color = Color.White.copy(alpha = 0.95f),
+                    color = Color.White.copy(alpha = 0.90f),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
@@ -205,9 +210,9 @@ fun WeatherScreen(
                     // My Location Button
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(38.dp)
                             .background(GlassPillColor, CircleShape)
-                            .border(1.dp, Color(0x66FFFFFF), CircleShape)
+                            .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
                             .clip(CircleShape)
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -238,16 +243,16 @@ fun WeatherScreen(
                             imageVector = Icons.Filled.MyLocation,
                             contentDescription = "Mi ubicación",
                             tint = Color.White,
-                            modifier = Modifier.size(19.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
                     // Search Toggle Button
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(38.dp)
                             .background(GlassPillColor, CircleShape)
-                            .border(1.dp, Color(0x66FFFFFF), CircleShape)
+                            .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
                             .clip(CircleShape)
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -260,7 +265,7 @@ fun WeatherScreen(
                             imageVector = Icons.Filled.Search,
                             contentDescription = "Buscar ciudad",
                             tint = Color.White,
-                            modifier = Modifier.size(19.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -280,7 +285,7 @@ fun WeatherScreen(
                     // Search Bar Input
                     GlassStrongCard(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp)
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -291,8 +296,8 @@ fun WeatherScreen(
                             Icon(
                                 imageVector = Icons.Filled.LocationOn,
                                 contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.size(20.dp)
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
 
@@ -300,9 +305,9 @@ fun WeatherScreen(
                                 if (searchQuery.isEmpty()) {
                                     Text(
                                         text = "Buscar barrio, ciudad o municipio...",
-                                        color = Color.White.copy(alpha = 0.75f),
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Medium
+                                        color = Color.White.copy(alpha = 0.65f),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Normal
                                     )
                                 }
                                 BasicTextField(
@@ -310,8 +315,8 @@ fun WeatherScreen(
                                     onValueChange = { viewModel.onSearchQueryChanged(it) },
                                     textStyle = TextStyle(
                                         color = Color.White,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
                                     ),
                                     cursorBrush = SolidColor(Color.White),
                                     singleLine = true,
@@ -330,7 +335,7 @@ fun WeatherScreen(
                                         imageVector = Icons.Filled.Close,
                                         contentDescription = "Limpiar búsqueda",
                                         tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
@@ -343,8 +348,8 @@ fun WeatherScreen(
                         GlassStrongCard(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .shadow(12.dp, RoundedCornerShape(18.dp)),
-                            shape = RoundedCornerShape(18.dp)
+                                .shadow(12.dp, RoundedCornerShape(16.dp)),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 if (isSearching) {
@@ -399,12 +404,12 @@ fun WeatherScreen(
                                                 if (hasBarrio) {
                                                     Box(
                                                         modifier = Modifier
-                                                            .background(Color(0x33FFD54F), RoundedCornerShape(4.dp))
+                                                            .background(Color.White.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
                                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                                     ) {
                                                         Text(
                                                             text = "Barrio",
-                                                            color = Color(0xFFFFE082),
+                                                            color = Color.White,
                                                             fontSize = 10.sp,
                                                             fontWeight = FontWeight.Bold
                                                         )
@@ -414,7 +419,7 @@ fun WeatherScreen(
                                             if (secondarySubtitle.isNotBlank()) {
                                                 Text(
                                                     text = secondarySubtitle,
-                                                    color = Color.White.copy(alpha = 0.8f),
+                                                    color = Color.White.copy(alpha = 0.70f),
                                                     fontSize = 12.sp
                                                 )
                                             }
@@ -422,7 +427,7 @@ fun WeatherScreen(
 
                                         if (index < searchResults.size - 1) {
                                             HorizontalDivider(
-                                                color = Color.White.copy(alpha = 0.15f),
+                                                color = Color.White.copy(alpha = 0.08f),
                                                 thickness = 1.dp
                                             )
                                         }
@@ -430,7 +435,7 @@ fun WeatherScreen(
                                 } else {
                                     Text(
                                         text = "No se encontraron barrios o municipios",
-                                        color = Color.White.copy(alpha = 0.8f),
+                                        color = Color.White.copy(alpha = 0.70f),
                                         fontSize = 13.sp,
                                         modifier = Modifier.padding(16.dp)
                                     )
@@ -458,8 +463,8 @@ fun WeatherScreen(
                         Icon(
                             imageVector = Icons.Filled.NearMe,
                             contentDescription = null,
-                            tint = Color(0xFFFFD54F),
-                            modifier = Modifier.size(22.dp)
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -471,14 +476,14 @@ fun WeatherScreen(
                             )
                             Text(
                                 text = "Actualiza el widget en tiempo real si te desplazas más de 300m.",
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = Color.White.copy(alpha = 0.75f),
                                 fontSize = 11.sp
                             )
                         }
                         Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
-                                .background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+                                .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
                                 .clickable {
                                     backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                                 }
@@ -567,23 +572,23 @@ private fun MainWeatherContent(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. Hero Weather Card
+        // 1. Hero Weather Card (Flattened single container, no nested matryoshka)
         GlassStrongCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(26.dp)
+            shape = RoundedCornerShape(24.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 20.dp),
+                    .padding(horizontal = 16.dp, vertical = 18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Condition Icon
                 WeatherConditionIcon(
                     iconType = weatherUI.iconType,
-                    size = 68.dp,
+                    size = 64.dp,
                     tint = Color.White,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    modifier = Modifier.padding(bottom = 2.dp)
                 )
 
                 // Main Temperature
@@ -611,7 +616,7 @@ private fun MainWeatherContent(
                 // Feels Like
                 Text(
                     text = "Sensación ${weatherUI.feelsLike.toInt()}°",
-                    color = Color.White.copy(alpha = 0.95f),
+                    color = Color.White.copy(alpha = 0.70f),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -632,111 +637,41 @@ private fun MainWeatherContent(
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 } else {
-                    Box(
+                    // Fallback flat card
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(RecommendationCardBg, RoundedCornerShape(18.dp))
-                            .border(1.dp, RecommendationCardBorder, RoundedCornerShape(18.dp))
-                            .clip(RoundedCornerShape(18.dp))
-                            .padding(14.dp)
-                            .testTag("clothing_recommendation_card")
+                            .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 2.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFDE047),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "ESTRATEGIA DE VESTIMENTA & SALUD",
-                                    color = Color(0xFFFDE68A),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
-
-                            // Micro-cápsula Glassmorphism de Aviso Inteligente por Franjas Horarias
-                            weatherUI.advice.timeSlotAlert?.let { alert ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color(0x400F172A), RoundedCornerShape(12.dp))
-                                        .border(1.dp, Color(0x70FDE047), RoundedCornerShape(12.dp))
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 10.dp, vertical = 7.dp)
-                                        .testTag("timeslot_clothing_alert_capsule")
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text(text = "⏱️", fontSize = 13.sp)
-                                        Text(
-                                            text = alert,
-                                            color = Color(0xFFFEF08A),
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            lineHeight = 15.sp
-                                        )
-                                    }
-                                }
-                            }
-
-                            Text(
-                                text = weatherUI.advice.baseAdvice,
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                lineHeight = 17.sp
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.9f),
+                                modifier = Modifier.size(15.dp)
                             )
-
-                            // Modifiers List
-                            if (weatherUI.advice.modifiers.isNotEmpty()) {
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    weatherUI.advice.modifiers.forEach { mod ->
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(RecommendationPillBg, RoundedCornerShape(10.dp))
-                                                .border(1.dp, RecommendationPillBorder, RoundedCornerShape(10.dp))
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .padding(8.dp)
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.Top,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                            ) {
-                                                Text(text = mod.icon, fontSize = 14.sp)
-                                                Column {
-                                                    Text(
-                                                        text = "${mod.title}:",
-                                                        color = Color(0xFFFDE047),
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(
-                                                        text = mod.text,
-                                                        color = Color.White.copy(alpha = 0.95f),
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Normal,
-                                                        lineHeight = 15.sp
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "ESTRATEGIA DE VESTIMENTA",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
                         }
+
+                        Text(
+                            text = weatherUI.advice.baseAdvice,
+                            color = Color.White.copy(alpha = 0.90f),
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Normal,
+                            lineHeight = 17.sp
+                        )
                     }
                 }
             }
@@ -750,7 +685,7 @@ private fun MainWeatherContent(
             // Lluvia
             GlassCard(
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -768,9 +703,9 @@ private fun MainWeatherContent(
                     )
                     Text(
                         text = "Lluvia",
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = Color.White.copy(alpha = 0.70f),
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Normal
                     )
                 }
             }
@@ -778,7 +713,7 @@ private fun MainWeatherContent(
             // Viento
             GlassCard(
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -796,9 +731,9 @@ private fun MainWeatherContent(
                     )
                     Text(
                         text = "Viento",
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = Color.White.copy(alpha = 0.70f),
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Normal
                     )
                 }
             }
@@ -806,7 +741,7 @@ private fun MainWeatherContent(
             // Humedad
             GlassCard(
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -824,9 +759,9 @@ private fun MainWeatherContent(
                     )
                     Text(
                         text = "Humedad",
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = Color.White.copy(alpha = 0.70f),
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Normal
                     )
                 }
             }
@@ -837,9 +772,7 @@ private fun MainWeatherContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0x350F172A), RoundedCornerShape(999.dp))
-                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(999.dp))
-                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(999.dp))
                     .padding(horizontal = 14.dp, vertical = 7.dp)
                     .testTag("air_quality_pill"),
                 contentAlignment = Alignment.Center
@@ -850,14 +783,14 @@ private fun MainWeatherContent(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(9.dp)
+                            .size(8.dp)
                             .background(aqi.category.color, CircleShape)
                     )
                     Text(
                         text = "Calidad del aire: ${aqi.category.label}",
-                        color = Color.White.copy(alpha = 0.95f),
+                        color = Color.White.copy(alpha = 0.90f),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -889,12 +822,12 @@ private fun MainWeatherContent(
                         ) {
                             WeatherConditionIcon(
                                 iconType = "sun",
-                                size = 18.dp,
-                                tint = Color(0xFFFDE047)
+                                size = 16.dp,
+                                tint = Color.White.copy(alpha = 0.9f)
                             )
                             Text(
                                 text = "SOL Y HORAS DE LUZ",
-                                color = Color(0xFFFDE68A),
+                                color = Color.White,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.5.sp
@@ -902,113 +835,77 @@ private fun MainWeatherContent(
                         }
 
                         if (weatherUI.daylightDuration.isNotBlank()) {
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0x500F172A), RoundedCornerShape(10.dp))
-                                    .border(1.dp, Color(0x35FFFFFF), RoundedCornerShape(10.dp))
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
-                                Text(
-                                    text = "☀️ ${weatherUI.daylightDuration} sol",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            Text(
+                                text = "☀️ ${weatherUI.daylightDuration} sol",
+                                color = Color.White.copy(alpha = 0.75f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
 
-                    // Amanecer y Atardecer
+                    // Amanecer y Atardecer en fila limpia
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         // Amanecer
-                        Box(
+                        Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .background(Color(0x450F172A), RoundedCornerShape(14.dp))
-                                .border(1.dp, Color(0x35FFFFFF), RoundedCornerShape(14.dp))
-                                .clip(RoundedCornerShape(14.dp))
-                                .padding(12.dp)
+                                .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .background(Color(0x30F59E0B), CircleShape)
-                                        .border(1.dp, Color(0x60FBBF24), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    WeatherConditionIcon(
-                                        iconType = "sunrise",
-                                        size = 22.dp,
-                                        tint = Color(0xFFFDE047)
-                                    )
-                                }
-
-                                Column {
-                                    Text(
-                                        text = "Amanecer",
-                                        color = Color.White.copy(alpha = 0.85f),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = weatherUI.sunrise,
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                            WeatherConditionIcon(
+                                iconType = "sunrise",
+                                size = 20.dp,
+                                tint = Color.White.copy(alpha = 0.85f)
+                            )
+                            Column {
+                                Text(
+                                    text = "Amanecer",
+                                    color = Color.White.copy(alpha = 0.65f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Normal
+                                )
+                                Text(
+                                    text = weatherUI.sunrise,
+                                    color = Color.White,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
 
                         // Atardecer
-                        Box(
+                        Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .background(Color(0x450F172A), RoundedCornerShape(14.dp))
-                                .border(1.dp, Color(0x35FFFFFF), RoundedCornerShape(14.dp))
-                                .clip(RoundedCornerShape(14.dp))
-                                .padding(12.dp)
+                                .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .background(Color(0x30F97316), CircleShape)
-                                        .border(1.dp, Color(0x60FB923C), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    WeatherConditionIcon(
-                                        iconType = "sunset",
-                                        size = 22.dp,
-                                        tint = Color(0xFFFB923C)
-                                    )
-                                }
-
-                                Column {
-                                    Text(
-                                        text = "Atardecer",
-                                        color = Color.White.copy(alpha = 0.85f),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = weatherUI.sunset,
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                            WeatherConditionIcon(
+                                iconType = "sunset",
+                                size = 20.dp,
+                                tint = Color.White.copy(alpha = 0.85f)
+                            )
+                            Column {
+                                Text(
+                                    text = "Atardecer",
+                                    color = Color.White.copy(alpha = 0.65f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Normal
+                                )
+                                Text(
+                                    text = weatherUI.sunset,
+                                    color = Color.White,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
@@ -1024,10 +921,10 @@ private fun MainWeatherContent(
 
         // 5. Version Footer
         Text(
-            text = "v2026-08-24 · Clima Atmosférico y UX Adaptable",
-            color = Color.White.copy(alpha = 0.85f),
+            text = "Easy-Climate · Clima Atmosférico y UX Adaptable",
+            color = Color.White.copy(alpha = 0.60f),
             fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Normal,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)
         )
@@ -1081,7 +978,7 @@ private fun PermissionDeniedContent(
                 modifier = Modifier
                     .size(64.dp)
                     .background(GlassPillColor, CircleShape)
-                    .border(1.dp, Color(0x66FFFFFF), CircleShape),
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -1102,16 +999,16 @@ private fun PermissionDeniedContent(
 
             Text(
                 text = "Activa el permiso de ubicación o busca tu ciudad manualmente para ver el clima.",
-                color = Color.White.copy(alpha = 0.9f),
+                color = Color.White.copy(alpha = 0.75f),
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Normal,
                 textAlign = TextAlign.Center
             )
 
             Box(
                 modifier = Modifier
                     .background(GlassStrongColor, RoundedCornerShape(999.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(999.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
                     .clip(RoundedCornerShape(999.dp))
                     .clickable { onRetry() }
                     .padding(horizontal = 24.dp, vertical = 12.dp)
@@ -1162,7 +1059,7 @@ private fun ErrorContent(
             )
             Text(
                 text = message,
-                color = Color.White.copy(alpha = 0.85f),
+                color = Color.White.copy(alpha = 0.75f),
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center
             )

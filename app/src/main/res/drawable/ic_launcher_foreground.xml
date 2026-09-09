@@ -1,8 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/ic_weather_logo"
-        android:gravity="center" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Safe zone: 66x66 dp centered at (54, 54) -> x: 21..87, y: 21..87 -->
+    <!-- 2D Flat Minimalist Vector Icon for Material You & Nothing OS -->
+
+    <!-- Sun Rays -->
+    <path
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M 64,25 L 64,29
+                          M 75,30 L 72,33
+                          M 78,41 L 74,41
+                          M 53,30 L 56,33" />
+
+    <!-- Sun Disc -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M 64,32 C 70.5,32 75.5,37 75.5,43.5 C 75.5,50 70.5,55 64,55 C 57.5,55 52.5,50 52.5,43.5 C 52.5,37 57.5,32 64,32 Z" />
+
+    <!-- Cloud Base Shadow Accent (Subtle Depth) -->
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M 33,67 L 71,67
+                          C 76.5,67 80,63 80,58
+                          C 80,53.2 76.2,49.5 71.5,49.5
+                          C 70.4,49.5 69.5,49.7 68.7,50.1
+                          C 67.5,42.5 61,37 53,37
+                          C 46.2,37 40.5,41.5 39,48
+                          C 37.8,47 36.2,46.5 34.5,46.5
+                          C 30,46.5 26.5,50 26.5,55
+                          C 26.5,55.8 26.7,56.6 27.1,57.4
+                          C 24.8,59 23.5,61.8 23.5,64.8
+                          C 23.5,68.8 27.2,71 33,71
+                          L 71,71
+                          C 77,71 81,67 81,62
+                          L 80,58 Z" />
+
+    <!-- Main White Clean Cloud -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 33,66 L 71,66
+                          C 76,66 79.5,62.2 79.5,57.5
+                          C 79.5,52.8 76,49 71.5,49
+                          C 70.4,49 69.5,49.2 68.7,49.6
+                          C 67.5,42 61,36.5 53,36.5
+                          C 46.2,36.5 40.5,41 39,47.5
+                          C 37.8,46.5 36.2,46 34.5,46
+                          C 30,46 26.5,49.5 26.5,54.5
+                          C 26.5,55.3 26.7,56.1 27.1,56.9
+                          C 24.8,58.5 23.5,61.2 23.5,64.2
+                          C 23.5,68.2 27.2,70 33,70
+                          L 71,70" />
+
+    <!-- Rain / Atmosphere Droplets (Cyan / Sky) -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M 37,75 L 34,80
+                          M 49,75 L 46,80
+                          M 61,75 L 58,80" />
+</vector>

@@ -230,11 +230,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_rain_prob, "💧 $rainProb%")
             views.setTextViewText(R.id.widget_wind, "💨 $windSpeed km/h")
 
-            // Bioclimatic bottom block: icon, 3-5 word summary, source badge (✨ Groq / ⚙️ Local)
-            views.setTextViewText(R.id.widget_clothing_icon, clothingIcon)
-            views.setTextViewText(R.id.widget_clothing_recommendation, clothingSummary)
-            views.setTextViewText(R.id.widget_source_badge, sourceBadge)
-
             // Weather icon mapping
             val iconResId = getWidgetIconRes(weatherCode, isDay)
             views.setImageViewResource(R.id.widget_icon, iconResId)
