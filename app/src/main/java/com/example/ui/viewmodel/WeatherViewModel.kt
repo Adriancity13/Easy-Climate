@@ -330,13 +330,18 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
      * Sobrescribe el clima en tiempo real para verificar renderizado Canvas,
      * estrategia de 3 capas, calzado y alertas bioclimáticas.
      */
+    /**
+     * Sobrescribe el clima en tiempo real para verificar renderizado Canvas,
+     * estrategia de 3 capas, calzado, alertas bioclimáticas y fondo dinámico del Widget.
+     */
     fun applyClimateOverride(
         temp: Double,
         humidity: Int,
         windSpeed: Double,
         cloudCover: Int,
         weatherCode: Int,
-        isDay: Boolean
+        isDay: Boolean,
+        simulatedHour: Int = 14
     ) {
         viewModelScope.launch {
             val config = ClimateSimulationConfig(
@@ -346,7 +351,8 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                 windSpeedKmH = windSpeed,
                 cloudCover = cloudCover,
                 weatherCode = weatherCode,
-                isDay = isDay
+                isDay = isDay,
+                simulatedHour = simulatedHour
             )
             DevToolsTelemetry.setSimulation(config)
 
@@ -432,11 +438,43 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                 isDay = isDay,
                 formattedDate = WeatherUtils.getFormattedCurrentDate()
             )
+
+            val (clothingIcon, clothingSummary) = WeatherWidgetProvider.getConciseClothingSummary(
+                temp = temp,
+                apparentTemp = feelsLike,
+                windSpeed = windSpeed,
+                rainProb = simulatedWeatherUI.rainProb,
+                humidity = humidity,
+                recommendation = recommendation
+            )
+
+            // Sincronizar simulación con el Widget de escritorio
+            WeatherWidgetProvider.updateAllWidgets(
+                context = getApplication(),
+                cityName = "$existingCity (Sandbox)",
+                temp = temp.roundToInt(),
+                tempMax = (temp + 3).roundToInt(),
+                tempMin = (temp - 4).roundToInt(),
+                description = "$desc (Simulado)",
+                weatherCode = weatherCode,
+                isDay = isDay,
+                feelsLike = feelsLike.roundToInt(),
+                rainProb = simulatedWeatherUI.rainProb,
+                windSpeed = windSpeed.roundToInt(),
+                clothingRecommendation = recommendation.headline,
+                clothingSummary = clothingSummary,
+                clothingIcon = clothingIcon,
+                sourceBadge = "⚡ Sandbox",
+                sunrise = "07:15",
+                sunset = "20:45",
+                simulatedHour = simulatedHour
+            )
         }
     }
 
     fun resetClimateOverride() {
         DevToolsTelemetry.clearSimulation()
+        prefs.edit().remove("sim_hour").apply()
         restoreCachedLocationOrStart()
     }
 

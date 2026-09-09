@@ -72,6 +72,7 @@ data class ClimateSimulationConfig(
     val cloudCover: Int = 40,
     val weatherCode: Int = 0,
     val isDay: Boolean = true,
+    val simulatedHour: Int = 14,
     val cityName: String = "Madrid (Sandbox)"
 )
 

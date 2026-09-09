@@ -135,7 +135,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             clothingRecommendation: String? = null,
             clothingSummary: String? = null,
             clothingIcon: String? = null,
-            sourceBadge: String? = null
+            sourceBadge: String? = null,
+            sunrise: String? = null,
+            sunset: String? = null,
+            simulatedHour: Int? = null
         ) {
             val prefs = context.getSharedPreferences("weather_app_prefs", Context.MODE_PRIVATE)
             val humidity = prefs.getInt("cached_humidity", 50)
@@ -156,7 +159,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val effectiveClothing = clothingRecommendation ?: effectiveSummary
 
             // Save to prefs for widget persistence
-            prefs.edit()
+            val editor = prefs.edit()
                 .putString("cached_name", cityName)
                 .putInt("cached_temp", temp)
                 .putInt("cached_temp_max", tempMax)
@@ -171,7 +174,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 .putString("cached_clothing_icon", effectiveIcon)
                 .putString("cached_clothing_summary", effectiveSummary)
                 .putString("cached_clothing_source", effectiveSourceBadge)
-                .apply()
+
+            if (sunrise != null) editor.putString("cached_sunrise", sunrise)
+            if (sunset != null) editor.putString("cached_sunset", sunset)
+            if (simulatedHour != null) {
+                editor.putInt("sim_hour", simulatedHour)
+            } else {
+                editor.remove("sim_hour")
+            }
+            editor.apply()
 
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val thisWidget = ComponentName(context, WeatherWidgetProvider::class.java)
@@ -219,6 +230,19 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_weather_2x2)
 
+            // Dynamic Widget background & typography color based strictly on time of day
+            val prefs = context.getSharedPreferences("weather_app_prefs", Context.MODE_PRIVATE)
+            val simHour = if (prefs.contains("sim_hour")) prefs.getInt("sim_hour", 14) else null
+            val cachedSunrise = prefs.getString("cached_sunrise", null)
+            val cachedSunset = prefs.getString("cached_sunset", null)
+
+            val themeConfig = WidgetTimeTheme.getThemeConfig(
+                simulatedHour = simHour,
+                sunrise = cachedSunrise,
+                sunset = cachedSunset
+            )
+            WidgetTimeTheme.applyThemeToRemoteViews(views, themeConfig)
+
             // Explicitly format Location avoiding overflow
             val displayName = formatWidgetLocation(cityName)
 
@@ -230,8 +254,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_rain_prob, "💧 $rainProb%")
             views.setTextViewText(R.id.widget_wind, "💨 $windSpeed km/h")
 
-            // Weather icon mapping
-            val iconResId = getWidgetIconRes(weatherCode, isDay)
+            // Weather icon mapping (uses daytime flag from time theme for consistent sun/moon representation)
+            val effectiveIsDay = themeConfig.timeSlot.isDaytime
+            val iconResId = getWidgetIconRes(weatherCode, effectiveIsDay)
             views.setImageViewResource(R.id.widget_icon, iconResId)
 
             // Click Intent to open MainActivity

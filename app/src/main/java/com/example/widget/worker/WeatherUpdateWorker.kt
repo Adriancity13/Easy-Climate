@@ -105,7 +105,9 @@ class WeatherUpdateWorker(
                 clothingRecommendation = clothingRecommendation,
                 clothingSummary = clothingSummary,
                 clothingIcon = clothingIcon,
-                sourceBadge = "⚙️ Local"
+                sourceBadge = "⚙️ Local",
+                sunrise = currentWeather.sunrise,
+                sunset = currentWeather.sunset
             )
 
             Log.d("WeatherUpdateWorker", "Background weather widget update succeeded for $cityName: ${currentWeather.temp}°")

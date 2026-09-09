@@ -69,6 +69,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -88,6 +89,8 @@ import com.example.engine.ClothingRecommendation
 import com.example.engine.UrbanEnvironmentType
 import com.example.ui.viewmodel.WeatherViewModel
 import com.example.utils.DevToolsTelemetry
+import com.example.widget.WidgetTimeSlot
+import com.example.widget.WidgetTimeTheme
 import com.example.widget.worker.WeatherWorkScheduler
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -1143,15 +1146,42 @@ private fun ClimateSandboxTab(
     var windKmH by remember { mutableDoubleStateOf(simConfig.windSpeedKmH) }
     var cloudCover by remember { mutableIntStateOf(simConfig.cloudCover) }
     var weatherCode by remember { mutableIntStateOf(simConfig.weatherCode) }
+    var simulatedHour by remember { mutableIntStateOf(simConfig.simulatedHour) }
     var isDay by remember { mutableStateOf(simConfig.isDay) }
 
-    fun applyPreset(t: Double, h: Int, w: Double, clouds: Int, code: Int, day: Boolean) {
+    val currentThemeConfig = remember(simulatedHour) {
+        WidgetTimeTheme.getThemeConfig(simulatedHour = simulatedHour)
+    }
+
+    fun applyPreset(t: Double, h: Int, w: Double, clouds: Int, code: Int, hour: Int, day: Boolean) {
         tempC = t
         humidity = h
         windKmH = w
         cloudCover = clouds
         weatherCode = code
+        simulatedHour = hour
         isDay = day
+    }
+
+    fun setTimeSlot(slot: WidgetTimeSlot) {
+        when (slot) {
+            WidgetTimeSlot.SUNRISE -> {
+                simulatedHour = 7
+                isDay = true
+            }
+            WidgetTimeSlot.DAY -> {
+                simulatedHour = 14
+                isDay = true
+            }
+            WidgetTimeSlot.SUNSET -> {
+                simulatedHour = 20
+                isDay = false
+            }
+            WidgetTimeSlot.NIGHT -> {
+                simulatedHour = 23
+                isDay = false
+            }
+        }
     }
 
     Column(
@@ -1160,20 +1190,229 @@ private fun ClimateSandboxTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Presets
+        // Franjas Horarias y Control de Fondo Widget
+        AdminSectionCard(title = "🕒 Franja Horaria (Fondo Dinámico Widget & Modo Canvas)") {
+            Text(
+                text = "El fondo del Widget cambia EXCLUSIVAMENTE por la hora del día. En la app, el Canvas renderiza efectos según el clima y la iluminación.",
+                color = Color(0xFF94A3B8),
+                fontSize = 11.sp,
+                lineHeight = 15.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Selector de Franja Horaria Predefinida
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                WidgetTimeSlot.values().forEach { slot ->
+                    val isSelected = currentThemeConfig.timeSlot == slot
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) Color(0xFF2563EB) else Color(0xFF1E293B))
+                            .border(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                color = if (isSelected) Color(0xFF60A5FA) else Color(0xFF334155),
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .clickable { setTimeSlot(slot) }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = slot.icon, fontSize = 16.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = slot.title.substringBefore(" ("),
+                                color = if (isSelected) Color.White else Color(0xFFCBD5E1),
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Slider de Hora Precisa (00:00 a 23:00)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Hora Simulada: ${String.format(Locale.getDefault(), "%02d:00 h", simulatedHour)}",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (currentThemeConfig.isAmoledBlack) Color(0xFF0F172A) else Color(0xFF1E293B))
+                        .border(1.dp, Color(0xFF475569), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = "${currentThemeConfig.timeSlot.icon} ${currentThemeConfig.timeSlot.title}",
+                        color = Color(0xFF38BDF8),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Slider(
+                value = simulatedHour.toFloat(),
+                onValueChange = {
+                    simulatedHour = it.roundToInt()
+                    isDay = simulatedHour in 7..20
+                },
+                valueRange = 0f..23f,
+                steps = 22,
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(0xFFF59E0B),
+                    activeTrackColor = Color(0xFFD97706)
+                )
+            )
+
+            Text(
+                text = "Fondo Widget Activo: ${currentThemeConfig.hexColorDesc}",
+                color = if (currentThemeConfig.isAmoledBlack) Color(0xFF4ADE80) else Color(0xFFCBD5E1),
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+
+        // Vista previa en vivo del Widget
+        AdminSectionCard(title = "📱 Vista Previa Dinámica del Widget (Simulación)") {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        if (currentThemeConfig.isAmoledBlack) {
+                            Brush.linearGradient(listOf(Color(0xFF000000), Color(0xFF000000)))
+                        } else {
+                            Brush.verticalGradient(currentThemeConfig.bgGradientColors)
+                        }
+                    )
+                    .border(
+                        1.dp,
+                        if (currentThemeConfig.isAmoledBlack) Color(0x33FFFFFF) else Color(0x3360A5FA),
+                        RoundedCornerShape(16.dp)
+                    )
+                    .padding(14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "📍 Madrid (Sandbox)",
+                            color = Color(currentThemeConfig.primaryTextColorInt),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "↑${(tempC + 3).roundToInt()}° ↓${(tempC - 4).roundToInt()}°",
+                            color = Color(currentThemeConfig.secondaryTextColorInt),
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "${tempC.roundToInt()}°",
+                                color = Color(currentThemeConfig.primaryTextColorInt),
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                text = getWmoLabel(weatherCode),
+                                color = Color(currentThemeConfig.secondaryTextColorInt),
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "Sens. ${(tempC - (windKmH * 0.12) + (humidity * 0.04)).roundToInt()}°",
+                                color = Color(currentThemeConfig.secondaryTextColorInt),
+                                fontSize = 11.sp
+                            )
+                            Text(
+                                text = "💧 ${if (weatherCode in listOf(51, 53, 55, 61, 63, 65, 80, 81, 82, 95)) 85 else 10}%",
+                                color = Color(currentThemeConfig.rainTextColorInt),
+                                fontSize = 11.sp
+                            )
+                            Text(
+                                text = "💨 ${windKmH.roundToInt()} km/h",
+                                color = Color(currentThemeConfig.secondaryTextColorInt),
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(
+                        color = if (currentThemeConfig.isAmoledBlack) Color(0x22FFFFFF) else Color(0x22FFFFFF),
+                        thickness = 0.5.dp
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Efectos en Canvas App:",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = when {
+                                weatherCode in listOf(95, 96, 99) -> "⛈️ Tormenta + Rayos + Lluvia"
+                                weatherCode in listOf(71, 73, 75) -> "❄️ Nieve + Partículas heladas"
+                                weatherCode in listOf(61, 63, 65, 80, 81) -> "🌧️ Gotas Dinámicas + Nubes"
+                                weatherCode in listOf(45, 48) -> "🌫️ Niebla y Gradiente difuso"
+                                !isDay -> "🌌 Estrellas Parpadeantes + 🌙 Luna"
+                                else -> "☀️ Sol Radiante + Cielo Limpio"
+                            },
+                            color = Color(0xFF38BDF8),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+
+        // Presets rápidos
         AdminSectionCard(title = "⚡ Escenarios Extremos Predefinidos") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 PresetChip(label = "❄️ Nieve (-3°C)", modifier = Modifier.weight(1f)) {
-                    applyPreset(-3.0, 75, 30.0, 95, 71, true)
+                    applyPreset(-3.0, 75, 30.0, 95, 71, 10, true)
                 }
                 PresetChip(label = "⛈️ Tormenta (22°C)", modifier = Modifier.weight(1f)) {
-                    applyPreset(22.0, 85, 45.0, 100, 95, false)
+                    applyPreset(22.0, 85, 45.0, 100, 95, 22, false)
                 }
-                PresetChip(label = "🌅 Ocaso (14°C)", modifier = Modifier.weight(1f)) {
-                    applyPreset(14.0, 65, 18.0, 40, 2, false)
+                PresetChip(label = "🌅 Atardecer (14°C)", modifier = Modifier.weight(1f)) {
+                    applyPreset(14.0, 65, 18.0, 40, 2, 20, false)
                 }
             }
             Spacer(modifier = Modifier.height(6.dp))
@@ -1182,19 +1421,56 @@ private fun ClimateSandboxTab(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 PresetChip(label = "🏖️ Bochorno (36°C)", modifier = Modifier.weight(1f)) {
-                    applyPreset(36.0, 80, 8.0, 20, 0, true)
+                    applyPreset(36.0, 80, 8.0, 20, 0, 14, true)
                 }
-                PresetChip(label = "🍃 Fresco (16°C)", modifier = Modifier.weight(1f)) {
-                    applyPreset(16.0, 50, 12.0, 30, 1, true)
+                PresetChip(label = "🌙 Noche Fría (2°C)", modifier = Modifier.weight(1f)) {
+                    applyPreset(2.0, 45, 20.0, 10, 0, 23, false)
                 }
                 PresetChip(label = "🌫️ Niebla (8°C)", modifier = Modifier.weight(1f)) {
-                    applyPreset(8.0, 95, 5.0, 100, 45, true)
+                    applyPreset(8.0, 95, 5.0, 100, 45, 7, true)
                 }
             }
         }
 
-        // Sliders
+        // Sliders meteorológicos
         AdminSectionCard(title = "🎛️ Parámetros Meteorológicos Manuales") {
+            // Condición WMO Selector
+            Text(
+                text = "Condición Meteorológica (Efectos Canvas): $weatherCode (${getWmoLabel(weatherCode)})",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    0 to "☀️ Despejado",
+                    2 to "⛅ Intervalos",
+                    3 to "☁️ Nublado",
+                    45 to "🌫️ Niebla",
+                    63 to "🌧️ Lluvia",
+                    71 to "❄️ Nieve",
+                    95 to "⚡ Tormenta"
+                ).forEach { (code, label) ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (weatherCode == code) Color(0xFF2563EB) else Color(0xFF1E293B))
+                            .clickable { weatherCode = code }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(text = label, color = Color.White, fontSize = 11.sp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             // Temperatura
             Text(
                 text = "Temperatura: ${tempC.roundToInt()} °C",
@@ -1263,33 +1539,7 @@ private fun ClimateSandboxTab(
                 )
             )
 
-            // Código WMO Selector
-            Text(
-                text = "Condición WMO: $weatherCode (${getWmoLabel(weatherCode)})",
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                listOf(0 to "Despejado", 3 to "Nublado", 45 to "Niebla", 63 to "Lluvia", 71 to "Nieve", 95 to "Tormenta").forEach { (code, label) ->
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (weatherCode == code) Color(0xFF2563EB) else Color(0xFF1E293B))
-                            .clickable { weatherCode = code }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(text = label, color = Color.White, fontSize = 11.sp)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Día / Noche Switch
             Row(
@@ -1298,7 +1548,7 @@ private fun ClimateSandboxTab(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isDay) "☀️ Horario Diurno (Sol Activo)" else "🌙 Horario Nocturno (Estrellas)",
+                    text = if (isDay) "☀️ Iluminación Diurna (Sol en Canvas)" else "🌙 Iluminación Nocturna (Luna y Estrellas)",
                     color = Color.White,
                     fontSize = 12.sp
                 )
@@ -1323,14 +1573,15 @@ private fun ClimateSandboxTab(
                         windSpeed = windKmH,
                         cloudCover = cloudCover,
                         weatherCode = weatherCode,
-                        isDay = isDay
+                        isDay = isDay,
+                        simulatedHour = simulatedHour
                     )
                     onApplied()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("⚡ Aplicar Simulación en la UI", fontWeight = FontWeight.Bold)
+                Text("⚡ Aplicar Simulación en UI y Widget", fontWeight = FontWeight.Bold)
             }
 
             if (simConfig.isActive) {

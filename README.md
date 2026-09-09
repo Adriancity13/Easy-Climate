@@ -484,12 +484,19 @@ Easy-Climate incluye una **consola de diagnóstico, auditoría e inspección té
 - **Controles de Almacenamiento:** Botón de purga total de caché en memoria y switch para simular modo offline estricto (*Offgrid Simulator*).
 
 ### Tab 5: Climate Sandbox & Simulador de Escenarios Extremos
-- **Sliders Interactivos:** Modificación en tiempo real de Temperatura ($-15^\circ\text{C}$ a $+45^\circ\text{C}$), Humedad Relativa ($0\%$ a $100\%$), Viento ($0$ a $90\text{ km/h}$), Código de Clima WMO e Irradiancia Solar.
+- **Control Horario y Fondos Dinámicos de Widget:**
+  - *Selector de Franjas Horarias:* Amanecer (06:00 - 08:30), Día/Mediodía (08:30 - 19:30), Atardecer (19:30 - 21:30) y Noche AMOLED (21:30 - 06:00).
+  - *Slider de Hora Continua:* Selección precisa de hora ($00:00\text{ h}$ a $23:00\text{ h}$) con cálculo automático de iluminación solar e impacto en el gradiente o negro puro AMOLED del widget de escritorio.
+- **Selector de Condiciones Meteorológicas (Efectos Canvas):** Despejado (WMO 0), Intervalos Nubosos (WMO 2), Nublado (WMO 3), Niebla (WMO 45), Lluvia (WMO 63), Nieve (WMO 71) y Tormenta Eléctrica (WMO 95).
+- **Vista Previa en Vivo del Widget y Canvas:** Mini-tarjeta reactiva en tiempo real que renderiza el tema visual exacto del widget (gradientes cálidos, pizarra, crepusculares o negro puro `#000000`) junto a la lista de capas de partículas activas en el Canvas.
+- **Sliders Meteorológicos Manuales:** Modificación en tiempo real de Temperatura ($-15^\circ\text{C}$ a $+45^\circ\text{C}$), Humedad Relativa ($0\%$ a $100\%$), Velocidad de Viento ($0$ a $80\text{ km/h}$) y Cobertura Nubosa ($0\%$ a $100\%$).
 - **Presets de Prueba Rápida:**
-  - ❄️ *Ola de Frío Extremo (Filomena -5°C, 25 km/h)*
-  - ☀️ *Ola de Calor Canicular (41°C, 15% HR)*
-  - ⛈️ *Tormenta de Verano / Bochorno (27°C, 88% HR)*
-  - 💨 *Cañón de Viento Venturi (11°C, 45 km/h)*
+  - ❄️ *Nieve Extrema (-3°C, 30 km/h, WMO 71)*
+  - ⛈️ *Tormenta Eléctrica (22°C, 45 km/h, WMO 95)*
+  - 🌅 *Atardecer Crepuscular (14°C, 18 km/h, WMO 2)*
+  - 🏖️ *Bochorno Canicular (36°C, 80% HR, WMO 0)*
+  - 🌙 *Noche Fría Despejada (2°C, 20 km/h, WMO 0)*
+  - 🌫️ *Niebla Densa (8°C, 95% HR, WMO 45)*
 
 ### Tab 6: Telemetría de Hardware, Memoria RAM y Rendimiento
 - **Monitor de Memoria RAM Heap:** Memoria en uso vs. memoria total asignada por la JVM de Android en Megabytes.
@@ -596,6 +603,17 @@ Easy-Climate incluye un widget de escritorio de alta densidad informativa optimi
 1. **Fila 1 (Cabecera Territorial y Extremos):** Nombre de la localidad/barrio (`maxLines = 1`, `ellipsize = "end"`) con indicador de temperaturas máxima y mínima del día.
 2. **Fila 2 (Estado Meteorológico Central):** Icono de condición climática, temperatura actual destacada a gran escala y sensación térmica percibida.
 3. **Fila 3 (Cápsula Bioclimática de Vestimenta):** Icono de prenda principal (`👕`, `🧥`, `🎽`, `🛡️`), consejo sintetizado de 3 a 5 palabras y distintivo de origen (`✨ Groq` o `⚙️ Local`).
+
+### Sistema de Fondos Dinámicos por Franja Horaria (`WidgetTimeTheme.kt`)
+
+A diferencia del Canvas de la aplicación (que dibuja efectos en vivo según el tiempo meteorológico como lluvia, nieve, niebla o sol), el **Widget de Escritorio cambia el color y gradiente de su fondo EXCLUSIVAMENTE según la hora del día** (o parámetros astronómicos reales de amanecer/atardecer proporcionados por Open-Meteo):
+
+| Franja Horaria | Intervalo Horario Estándar | Recurso Drawable XML | Gradiente / Color de Fondo | Optimización Visual |
+| :--- | :--- | :--- | :--- | :--- |
+| **🌅 Amanecer** | `06:00` a `08:30` | `widget_bg_sunrise.xml` | Gradiente Cálido Dorado (`#3D1A10` $\to$ `#170B08`) | Luz cálida matutina con acento en melocotón |
+| **☀️ Día / Mediodía** | `08:30` a `19:30` | `widget_bg_day.xml` | Gradiente Azul Pizarra (`#1E2738` $\to$ `#0B111D`) | Claridad diurna con tipografía de alto contraste |
+| **🌇 Atardecer** | `19:30` a `21:30` | `widget_bg_sunset.xml` | Gradiente Crepuscular Púrpura (`#3B1238` $\to$ `#120619`) | Tonos violetas crepusculares |
+| **🌙 Noche AMOLED** | `21:30` a `06:00` | `widget_bg_night.xml` | **Negro Puro `#000000`** | **Apagado total de píxeles OLED y ahorro energético extremo** |
 
 ### Ciclo de Vida y Actualización con WorkManager
 
