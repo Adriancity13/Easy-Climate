@@ -1,158 +1,183 @@
-# ☀️ El Tiempo - Android Weather App & Native Widget
+# 🌤️ Easy-Climate: Engine Bioclimático + IA Local-First para Recomendación de Vestimenta
 
-Una aplicación meteorológica moderna, fluida y elegante para Android, desarrollada íntegramente en **Kotlin** y **Jetpack Compose (Material 3)**. Ofrece pronósticos precisos en tiempo real, fondos atmosféricos animados reactivos, métricas climáticas avanzadas y un **widget nativo 2x2** optimizado para Android y Nothing OS con sincronización automática en segundo plano mediante **WorkManager**.
-
----
-
-## 📱 Captura de Pantalla y Características Principales
-
-### 🌟 1. Experiencia Visual y Animaciones
-* **Fondos Atmosféricos Dinámicos:** Partículas y degradados que cambian en tiempo real según las condiciones meteorológicas (soleado, despejado nocturno, nublado, lluvia, tormenta eléctrica, nieve, niebla).
-* **Diseño Glassmorphism:** Componentes translúcidos con desenfoque de fondo sutil y bordes elegantes de alta legibilidad.
-* **Soporte de Pantallas de Alta Tasa de Refresco (90Hz / 120Hz):** Configuración nativa para una navegación ultrasuave.
-
-### 📊 2. Datos Meteorológicos Completos
-* **Tiempo Actual:** Temperatura, sensación térmica, estado del cielo con icono animado, humedad, velocidad y ráfagas de viento, dirección, índice UV, visibilidad y presión atmosférica.
-* **Pronóstico Horario (Carrusel 24h):** Gráfico y tarjetas interactivas con la evolución hora a hora de temperatura, probabilidad de precipitación e iconos de estado.
-* **Pronóstico Extendido a 7 Días:** Acordeón interactivo con desglose de temperaturas máximas y mínimas, horas de amanecer y atardecer, y probabilidad de lluvia.
-* **Recomendaciones Inteligentes:** Sugerencias automáticas de vestimenta y precauciones (paraguas, ropa de abrigo, protección solar) calculadas según las condiciones presentes.
-
-### 📍 3. Geolocalización Micro-local y Búsqueda por Barrios
-* **Búsqueda Micro-local de Barrios y Distritos:** Barra de búsqueda inteligente con soporte para nombres de barrios, distritos y zonas locales (ej. *Delicias*, *Casa de Campo*, *Malasaña*, *Triana*, *Gràcia*, etc.), además de ciudades y municipios.
-* **Autocompletado y Formato Claro:** Sugerencias con distintivo `[Barrio]` indicando explícitamente el barrio y la ciudad a la que pertenece (ejemplo: `Delicias · Madrid, España`).
-* **Geocodificación con OpenStreetMap (Nominatim):** Extracción granular de jerarquías territoriales (`neighbourhood`, `quarter`, `suburb`, `city_district`, `borough`) con respaldo continuo de Open-Meteo.
-* **Coordenadas GPS de Alta Precisión:** Al seleccionar un barrio, se consulta el pronóstico micro-local con sus coordenadas exactas, reflejando el nombre en formato `Barrio, Ciudad` tanto en la cabecera como en el widget.
-
-### 🧩 4. Widget Nativo 2x2 (Android & Nothing OS)
-* **Diseño Minimalista y Equilibrado:** Cuadrícula simétrica 2x2 resistente a temas dinámicos del sistema para conservar su estética de cristal ahumado oscuro.
-* **Información en Pantalla de Inicio:**
-  * Nombre explícito de barrio y ciudad (`Delicias, Madrid` o `Casa de Campo, Madrid`) y temperaturas máxima / mínima del día (`↑28° ↓15°`).
-  * Temperatura actual destacada con tipografía de alto contraste.
-  * Icono de condición y descripción del tiempo.
-  * Micro-cápsula con **sensación térmica**, **probabilidad de lluvia** y **velocidad del viento**.
-* **Acceso Directo:** Tocar el widget abre inmediatamente la aplicación en pantalla completa.
-
-### ⚙️ 5. Actualización Automática y Seguimiento en Segundo Plano
-* **Actualización Dinámica al Moverte (Umbral de 300 Metros):** Mediante `LocationTrackingManager` y `FusedLocationProviderClient`, la aplicación detecta desplazamientos significativos entre barrios (umbral de 300 a 500 metros) aun con la aplicación cerrada.
-* **Refresco Inmediato del Widget:** Al desplazarte de una zona a otra, se encola de inmediato una tarea de WorkManager (`WeatherUpdateWorker`) que consulta las nuevas coordenadas y actualiza el widget en tiempo real sin esperar al ciclo periódico de 1 hora.
-* **Actualización por Cambio Climático:** Forzado automático de actualización de datos si se detecta un cambio notable en el estado meteorológico (despejado a lluvia/tormenta) o una variación térmica brusca (≥ 3 °C).
-* **Independiente del Ciclo de Vida y Persistencia:** `BootCompletedReceiver` reactiva las actualizaciones periódicas y el rastreo de desplazamientos tras reiniciar el dispositivo (`RECEIVE_BOOT_COMPLETED`).
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-purple.svg?style=for-the-badge&logo=kotlin)](https://kotlinlang.org)
+[![Android Jetpack](https://img.shields.io/badge/Android%20Jetpack-Compose%20M3-3DDC84.svg?style=for-the-badge&logo=android)](https://developer.android.com/jetpack)
+[![Open-Meteo](https://img.shields.io/badge/API-Open--Meteo%20v1-orange.svg?style=for-the-badge)](https://open-meteo.com/)
+[![Groq](https://img.shields.io/badge/LLM-Groq%20Llama%203.3%2070B-F55036.svg?style=for-the-badge)](https://groq.com/)
+[![Jetpack Glance](https://img.shields.io/badge/Widget-Glance%20%2F%20RemoteViews-4285F4.svg?style=for-the-badge)](https://developer.android.com/jetpack/compose/glance)
+[![Nothing OS Ready](https://img.shields.io/badge/Nothing%20OS-Monochrome%20Ready-000000.svg?style=for-the-badge)](https://nothing.tech)
 
 ---
 
-## 🏗️ Arquitectura del Proyecto
+## 📌 1. Introducción y Propósito del Proyecto
 
-El proyecto sigue los principios de **Clean Architecture** y el patrón de diseño **MVVM (Model-View-ViewModel)**:
+Las aplicaciones meteorológicas convencionales informan la temperatura termométrica ($^\circ\text{C}$) o la sensación térmica estática, pero **fracasan al responder la pregunta fisiológica fundamental: *«¿Qué debo ponerme hoy para estar cómodo y proteger mi salud?»***.
 
-```
-app/src/main/java/com/example/
-├── MainActivity.kt                  # Punto de entrada de la actividad principal
-├── data/
-│   ├── api/
-│   │   ├── ApiClient.kt             # Configuración de clientes HTTP (Ktor/OkHttp)
-│   │   └── WeatherApiService.kt     # Definición de endpoints de APIs meteorológicas
-│   ├── models/
-│   │   └── WeatherModels.kt         # Modelos de datos y DTOs serializables
-│   └── repository/
-│       └── WeatherRepository.kt     # Orquestación de datos climáticos y geocodificación
-├── ui/
-│   ├── components/
-│   │   ├── AtmosphericWeatherBackground.kt # Canvas con partículas dinámicas y gradientes
-│   │   ├── DailyAccordion.kt        # Acordeón del pronóstico a 7 días
-│   │   ├── GlassComponents.kt       # Tarjetas y contenedores con efecto Glassmorphism
-│   │   ├── HourlyCarousel.kt        # Carrusel horario 24 horas
-│   │   └── WeatherIcons.kt          # Iconos vectoriales temáticos
-│   ├── screens/
-│   │   └── WeatherScreen.kt         # Pantalla principal en Jetpack Compose
-│   ├── theme/
-│   │   ├── Color.kt                 # Paleta de colores M3
-│   │   ├── Theme.kt                 # Tema principal de la aplicación
-│   │   └── Type.kt                  # Tipografía
-│   └── viewmodel/
-│       └── WeatherViewModel.kt      # Gestión de estado (UIState) y flujos reactivos
-├── utils/
-│   └── WeatherUtils.kt              # Mapeo de códigos WMO, formatos de fecha y recomendaciones
-└── widget/
-    ├── BootCompletedReceiver.kt     # Receptor de reinicio del sistema
-    ├── WeatherWidgetProvider.kt     # AppWidgetProvider del widget 2x2
-    └── worker/
-        ├── WeatherUpdateWorker.kt   # CoroutineWorker para consultas en segundo plano
-        └── WeatherWorkScheduler.kt  # Planificador periódico de WorkManager
+**Easy-Climate** resuelve la brecha entre la meteorología física y la fisiología humana mediante una arquitectura híbrida **Local-First + LLM Bioclimático**. Diseñada con especial atención a perfiles de alta transpiración y sensibilidad respiratoria (prevención de broncoconstricción inducida por frío/asma y enfriamiento por sudor frío), la aplicación analiza variables termodinámicas en tiempo real (humedad relativa, punto de rocío, irradiancia solar, convección urbana y gradientes térmicos vespertinos) para generar recomendaciones precisas de vestimenta, calzado y estrategia de capas (*layering*).
+
+---
+
+## 🏗️ 2. Arquitectura del Sistema (Hybrid Local-First + LLM)
+
+Easy-Climate implementa un flujo unidireccional desacoplado que garantiza **cero latencia de renderizado (0 ms en memoria RAM)**, resiliencia total fuera de línea (*offgrid*) y llamadas mínimas optimizadas a redes y APIs de inferencia.
+
+### Diagrama de Flujo de Datos
+
+```mermaid
+flowchart TD
+    A[Fused Location / GPS] --> B[Double-Barrier RAM Cache]
+    C[Open-Meteo REST API] -->|Network Fetch| B
+    B -->|Previsión 7 Días / Horas| D[BioclimaticClothingEngine.kt]
+    D -->|Cálculo Físico 0 ms| E[Local Recommendation Entity]
+    E -->|Inyección Contexto JSON| F[Groq AI Advisor Llama-3.3]
+    F -->|Síntesis Causal 20-30 Palabras| G[Jetpack Compose UI State]
+    E -->|Modo Offgrid / Fallback Rápido| G
+    E -->|Actualización Widget 0 API Calls| H[Widget 2x2 Glance / RemoteViews]
 ```
 
----
+### 🛡️ Caché de Doble Barrera en RAM (`Double-Barrier Cache`)
+Para evitar saturación de red y consumo innecesario de batería en segundo plano mediante `WorkManager`, el repositorio gestiona un sistema de invalidación multicriterio:
 
-## 🌐 APIs y Servicios Utilizados
+1. **Barrera Temporal ($TTL = 30\text{ min}$):** Los datos en memoria no se reconsultan si la antigüedad es inferior a 30 minutos, salvo que ocurra una invalidación física.
+2. **Barrera Espacial ($\Delta\text{Distancia} \ge 2\text{ km}$):** Utilizando la fórmula del semiverseno (*Haversine*), las consultas GPS no invalidan la caché a menos que el usuario se haya desplazado más de 2 kilómetros.
+3. **Barrera Térmica ($\Delta T \ge \pm 3^\circ\text{C}$ o Cambio de Estado WMO):** Si el sensor o la estación reporta una oscilación repentina de temperatura o paso directo de seco a lluvia, la caché se invalida inmediatamente.
 
-1. **[Open-Meteo Weather API](https://open-meteo.com/):**
-   * Previsión horaria y diaria detallada (temperatura, código WMO, viento, lluvia, sensación térmica, UV, humedad).
-   * Totalmente gratuita y de código abierto (no requiere claves de API privadas).
-2. **[Open-Meteo Geocoding API](https://geocoding-api.open-meteo.com/):**
-   * Búsqueda por nombre de ciudades y coordenadas mundiales.
-3. **[BigDataCloud Reverse Geocoding API](https://www.bigdatacloud.com/):**
-   * Traducción de latitud/longitud GPS a nombres de localidades legibles.
-
----
-
-## 🛠️ Stack Tecnológico y Dependencias
-
-| Tecnología | Propósito |
-| :--- | :--- |
-| **Kotlin** | Lenguaje de desarrollo principal |
-| **Jetpack Compose** | Framework declarativo de interfaz de usuario |
-| **Material Design 3** | Sistema de diseño de última generación |
-| **AndroidX WorkManager** | Planificación de trabajos periódicos en segundo plano |
-| **Coroutines & StateFlow** | Concurrencia reactiva y manejo de estado asíncrono |
-| **Google Play Services Location** | Detección de ubicación por GPS de bajo consumo |
-| **Ktor / OkHttp / Gson** | Consumo y parseo de servicios REST |
+### ⚡ Modo Zero-Cost / Offgrid
+- **Previsión a 7 Días:** Se computa al 100% en memoria RAM local mediante `BioclimaticClothingEngine.processSevenDayForecast()` con un coste de cómputo $< 0.1\text{ ms}$ por día, sin realizar llamadas HTTP adicionales a la IA.
+- **Widgets de Escritorio:** Los ciclos periódicos del widget o reactivación por reinicio (`BootCompletedReceiver`) evalúan el motor físico local sin incurrir en costes de API de inferencia.
 
 ---
 
-## 📋 Permisos Requeridos
+## ⚙️ 3. Motor Bioclimático Local (`BioclimaticClothingEngine.kt`)
 
-En `AndroidManifest.xml` se declaran los siguientes permisos:
+El núcleo de cálculo físico implementa modelos matemáticos bioclimáticos rigurosos:
 
-* `android.permission.INTERNET`: Necesario para descargar los datos del clima y geocodificación.
-* `android.permission.ACCESS_FINE_LOCATION` y `ACCESS_COARSE_LOCATION`: Detección precisa de la ubicación actual del usuario en primer plano.
-* `android.permission.ACCESS_BACKGROUND_LOCATION`: Seguimiento de desplazamientos de 300 a 500 metros entre barrios con la aplicación cerrada para actualizar el widget al instante.
-* `android.permission.RECEIVE_BOOT_COMPLETED`: Reactivación de la sincronización del widget y del seguimiento de ubicación tras reiniciar el teléfono.
+### A. Tasa de Evaporación y Punto de Rocío ($T_d$)
+Se calcula la presión de vapor de saturación $E_s(T)$ mediante la **Ecuación de Magnus-Tetens** y la presión de vapor actual $E(T, \text{HR})$:
+
+$$E_s(T) = 6.112 \cdot \exp\left(\frac{17.67 \cdot T}{T + 243.5}\right)$$
+
+$$E(T, \text{HR}) = E_s(T) \cdot \left(\frac{\text{HR}}{100}\right)$$
+
+$$T_d = \frac{243.5 \cdot \ln\left(\frac{E}{6.112}\right)}{17.67 - \ln\left(\frac{E}{6.112}\right)}$$
+
+- **Regla Estricta de Veto del Algodón:** Si $T_d \ge 16^\circ\text{C}$ o la humedad relativa $\text{HR} > 70\%$, el motor emite alerta de **Alta Capilaridad Mandatoria**, forzando el uso exclusivo de tejidos sintéticos microperforados o rejilla 3D (poliéster/poliamida) de secado rápido y prohibiendo el algodón absorbente.
+
+### B. Convección Urbana y Wind Chill Pectoral
+En entornos de cañón urbano (*Urban Street Canyons*), el viento se acelera por efecto Venturi:
+
+$$V_{\text{urbano}} = V_{\text{estación}} \cdot 1.2$$
+
+$$\text{WindChill} = 13.12 + 0.6215 \cdot T - 11.37 \cdot (V_{\text{urbano}})^{0.16} + 0.3965 \cdot T \cdot (V_{\text{urbano}})^{0.16}$$
+
+$$\Delta T_{\text{viento}} = T - \text{WindChill}$$
+
+- **Alerta de Protección Pectoral:** Si $\Delta T_{\text{viento}} \ge 3.0^\circ\text{C}$ o $V_{\text{urbano}} \ge 18\text{ km/h}$ con $T < 18^\circ\text{C}$, se activa el requerimiento mandatorio de **cortavientos cerrado y cuello alto** para proteger la zona torácica y prevenir espasmos bronquiales y crisis asmáticas.
+
+### C. Factor de Mucosa Respiratoria
+- **Condición:** Aire seco e invernal ($T \le 12^\circ\text{C}$ y $\text{HR} < 40\%$) o ráfagas de viento $\ge 20\text{ km/h}$.
+- **Acción:** Recomienda braga técnica o cuello protector de tejido poroso para humidificar y atemperar el flujo de aire inhalado antes del contacto con las vías respiratorias bajas.
+
+### D. Radiación Solar Directa y Estrategia Sol/Sombra
+A partir de la cobertura de nubes ($C\%$) y la hora solar, se estima la irradiancia directa ($W/m^2$) y la ganancia térmica percibida:
+
+$$\text{Ganancia Solar} = \Delta T_{\text{solar}} \in [+2^\circ\text{C}, +4^\circ\text{C}]$$
+
+- **Estrategia Modular:** Recomienda prendas intermedias con cremallera frontal completa (*full-zip*) para disipar calor al caminar bajo radiación directa y abrochar rápidamente en zonas sombrías o de viento.
+
+### E. Alerta de Caída Térmica Vespertina (*Sunset Drop*)
+- **Detección:** Gradiente térmico al anochecer con descenso brusco ($> 5^\circ\text{C}$) o aproximación $T - T_d \le 2^\circ\text{C}$.
+- **Efecto:** Alerta de **Sudor Frío**, recomendando llevar en mochila un cortavientos ligero para evitar que la humedad corporal acumulada se enfríe sobre la piel al caer el sol.
+
+### F. Matriz de Aislamiento Térmico CLO
+Estimación estandarizada del nivel de aislamiento según la temperatura operativa:
+
+| Rango de Temperatura | Nivel CLO Requerido | Configuración Textil Típica |
+| :--- | :--- | :--- |
+| $\ge 26^\circ\text{C}$ | **0.3 – 0.4 CLO** | Tejido técnico ultraligero microperforado |
+| $20^\circ\text{C} - 25^\circ\text{C}$ | **0.5 – 0.6 CLO** | Manga corta transpirable / Poliéster |
+| $15^\circ\text{C} - 19^\circ\text{C}$ | **0.7 – 0.8 CLO** | Manga corta técnica + Cortavientos modular |
+| $10^\circ\text{C} - 14^\circ\text{C}$ | **0.9 – 1.0 CLO** | Capa base + Sudadera técnica + Cortavientos cerrado |
+| $< 10^\circ\text{C}$ | **1.1+ CLO** | Sistema multicapa térmico + Cortavientos estanco |
 
 ---
 
-## 🚀 Cómo Compilar y Ejecutar
+## 🧠 4. Integración del Asesor IA (`GroqBioclimaticAdvisor.kt`)
+
+Cuando la conexión está disponible, los cálculos físicos se envían al modelo **Llama 3.3 70B Versatile** en **Groq Cloud** mediante un *System Prompt* causal y riguroso.
+
+### Inyección de Contexto JSON
+```json
+{
+  "currentTemp": 20.4,
+  "apparentTemp": 19.8,
+  "humidity": 78,
+  "dewPoint": 16.5,
+  "urbanWindSpeed": 21.6,
+  "deltaWindChill": 3.4,
+  "solarGain": 3.0,
+  "cloLevel": "0.6 CLO",
+  "isHighSweatRisk": true,
+  "isMandatoryChestProtection": true
+}
+```
+
+### Directiva de Redacción Causal
+El asesor IA no genera listas genéricas; sintetiza una recomendación estructurada en **español fluido y orgánico (20 a 30 palabras)** explicando la causa ambiental y la respuesta textil preventiva:
+> *"Con 20°C y humedad alta (punto de rocío 16.5°C), usa camiseta técnica de secado rápido; el viento urbano de 21 km/h exige cortavientos abrochado para evitar enfriamiento pectoral."*
+
+---
+
+## 📱 5. Interfaz de Usuario y Widget de Escritorio
+
+### Widget Nativo 2x2 (Jetpack Glance / RemoteViews)
+Rediseñado bajo principios de diseño **Minimal & Glassmorphic**:
+1. **Cabecera de Ubicación:** Soporte para nombres de municipios y distritos (`Delicias, Madrid`) con `maxLines = 1`, `ellipsize = "end"` a `14sp` y rango térmico $\uparrow\text{Max} \downarrow\text{Min}$ a la derecha.
+2. **Temperatura y Estado:** Tipografía central a `32sp` con descripción climática a `12sp` sin truncamientos.
+3. **Fila de Métricas Secundarias:** Muestra en una única línea compacta `Sens. 20° · 💧 28% · 💨 17 km/h`.
+4. **Bloque Destacado Bioclimático:** Contenedor redondeado (`CornerRadius 14dp`) con icono de vestimenta prominente (`👕`, `🧥`, `🎽`, `🛡️`), resumen de 3-5 palabras (`maxLines = 2`) y badge del origen (`✨ Groq` o `⚙️ Local`).
+
+### ⚪ Compatibilidad con Nothing OS & Material You
+- **Vector Monocromo (`res/drawable/ic_launcher_monochrome.xml`):** Silueta vectorial 100% blanca sólida sobre fondo transparente, respetando el área de seguridad central de **66x66 dp** dentro del lienzo de **108x108 dp**.
+- **Adaptative Icon XML (`ic_launcher.xml`):**
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>
+```
+
+---
+
+## 🛠️ 6. Guía de Instalación, Compilación y Configuración
 
 ### Prerrequisitos
-* **Android Studio** (versión Ladybug / Jellyfish o superior).
-* **JDK 17** o superior.
-* **Android SDK** con `compileSdk 35` y `minSdk 26`.
+- **Android Studio:** Ladybug (2024.2.1) o superior.
+- **JDK:** OpenJDK 17+.
+- **Android SDK:** `minSdk = 26`, `targetSdk = 35`, `compileSdk = 35`.
 
-### Pasos para compilar:
-1. Clona o descarga el repositorio del proyecto.
-2. Abre la carpeta raíz en Android Studio.
-3. Espera a que Gradle sincronice las dependencias del archivo `libs.versions.toml`.
-4. Ejecuta el proyecto en un emulador o dispositivo físico con el botón **Run** (`Shift + F10`).
+### Configuración de Credenciales
+Para habilitar el Asesor IA en tiempo real, añade tu API Key de Groq en el archivo `.env` o en el panel de secretos de compilación:
+```properties
+GROQ_API_KEY=gsk_tu_api_key_aqui
+```
 
-### Ejecución de tareas mediante Gradle:
+### Comandos de Compilación y Verificación
 ```bash
 # Compilar el APK en modo depuración
 gradle assembleDebug
 
-# Ejecutar las pruebas unitarias locales
+# Ejecutar las pruebas unitarias en la JVM local (Robolectric / JUnit)
 gradle :app:testDebugUnitTest
+
+# Verificar linting y consistencia de recursos
+gradle lintDebug
 ```
-
----
-
-## 📌 Cómo Usar el Widget en la Pantalla de Inicio
-
-1. Ve a la pantalla de inicio de tu dispositivo Android (o Nothing OS).
-2. Mantén presionado un espacio vacío y selecciona **Widgets**.
-3. Busca **El Tiempo** en la lista de aplicaciones.
-4. Arrastra el widget **El Tiempo (2x2)** a la pantalla de inicio.
-5. El widget se sincronizará automáticamente y se actualizará cada hora en segundo plano.
 
 ---
 
 ## 📄 Licencia
 
-Este proyecto está distribuido bajo la licencia libre para fines educativos, demostrativos y de uso personal.
+Proyecto distribuido bajo la licencia MIT. Diseñado con rigor técnico para maximizar el confort y la salud fisiológica frente a cualquier condición meteorológica.

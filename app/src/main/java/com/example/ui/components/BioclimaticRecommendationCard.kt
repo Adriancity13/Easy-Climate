@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Schedule
@@ -48,6 +50,7 @@ import com.example.engine.ComplementAlert
 import com.example.engine.DynamicComplementPill
 import com.example.engine.DynamicFootwearPill
 import com.example.engine.ModularLayerStrategy
+import com.example.engine.RecommendationSource
 import com.example.engine.ThermalLevel
 import com.example.engine.TimelineMilestone
 import java.util.Locale
@@ -80,20 +83,36 @@ fun BioclimaticRecommendationCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                val isAi = recommendation.source == RecommendationSource.AI_BIOCLIMATIC ||
+                        recommendation.source == RecommendationSource.GEMINI_AI
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .background(
+                            if (isAi) Color(0x33A855F7) else Color(0x2238BDF8),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .border(
+                            1.dp,
+                            if (isAi) Color(0x88C084FC) else Color(0x5538BDF8),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 7.dp, vertical = 3.5.dp)
+                ) {
                     Icon(
-                        imageVector = Icons.Outlined.AutoAwesome,
+                        imageVector = if (isAi) Icons.Filled.AutoAwesome else Icons.Filled.Settings,
                         contentDescription = null,
-                        tint = Color(0xFFFDE047),
-                        modifier = Modifier.size(15.dp)
+                        tint = if (isAi) Color(0xFFE879F9) else Color(0xFF7DD3FC),
+                        modifier = Modifier.size(13.dp)
                     )
-                    Spacer(modifier = Modifier.width(5.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "MOTOR BIOCLIMÁTICO DETERMINISTA",
-                        color = Color(0xFFFDE68A),
+                        text = if (isAi) "IA Bioclimática" else "Motor Local",
+                        color = if (isAi) Color(0xFFF5D0FE) else Color(0xFFBAE6FD),
                         fontSize = 10.5.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -171,9 +190,9 @@ fun BioclimaticRecommendationCard(
                         text = recommendation.headline,
                         color = Color.White,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = 18.sp,
-                        maxLines = 2,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 19.sp,
+                        maxLines = 6,
                         overflow = TextOverflow.Ellipsis,
                         softWrap = true
                     )

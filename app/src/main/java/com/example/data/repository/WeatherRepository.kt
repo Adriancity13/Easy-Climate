@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import android.util.Log
 import com.example.data.api.ApiClient
 import com.example.data.models.AirQualityCategory
 import com.example.data.models.AirQualityResponse
@@ -11,10 +12,15 @@ import com.example.data.models.GeocodingCityItem
 import com.example.data.models.HourlyItem
 import com.example.data.models.OpenMeteoWeatherResponse
 import com.example.engine.BioclimaticClothingEngine
+import com.example.engine.BioclimaticMathEngine
+import com.example.engine.GroqBioclimaticAdvisor
+import com.example.engine.RecommendationSource
 import com.example.utils.WeatherUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -25,7 +31,8 @@ class WeatherRepository {
     suspend fun fetchWeather(
         latitude: Double,
         longitude: Double,
-        knownCityName: String? = null
+        knownCityName: String? = null,
+        skipAi: Boolean = false
     ): Triple<String, CurrentWeatherUI, Pair<List<HourlyItem>, List<DailyItem>>> = withContext(Dispatchers.IO) {
         val cityNameDeferred = async {
             if (!knownCityName.isNullOrBlank()) {
@@ -53,7 +60,7 @@ class WeatherRepository {
 
         val airQualityUI = processAirQuality(aqResponse)
         val hourlyAndDaily = processForecast(response)
-        val currentWeatherUI = processCurrentWeather(response, hourlyAndDaily.first, airQualityUI)
+        val currentWeatherUI = processCurrentWeather(cityName, response, hourlyAndDaily.first, airQualityUI, skipAi = skipAi)
 
         Triple(cityName, currentWeatherUI, hourlyAndDaily)
     }
@@ -139,15 +146,16 @@ class WeatherRepository {
         return AirQualityUI(aqi = aqiValue, category = category)
     }
 
-    private fun processCurrentWeather(
+    private suspend fun processCurrentWeather(
+        cityName: String,
         response: OpenMeteoWeatherResponse,
         hourlyItems: List<HourlyItem> = emptyList(),
-        airQualityUI: AirQualityUI? = null
-    ): CurrentWeatherUI {
+        airQualityUI: AirQualityUI? = null,
+        skipAi: Boolean = false
+    ): CurrentWeatherUI = coroutineScope {
         val current = response.current ?: throw IllegalStateException("Current weather data is missing")
         val temp = current.temperature2m?.roundToInt() ?: 0
         val feelsLike = current.apparentTemperature ?: temp.toDouble()
-        val feelsLikeInt = feelsLike.roundToInt()
         val hum = current.relativeHumidity2m ?: 0
         val wind = current.windSpeed10m?.roundToInt() ?: 0
         val rain = current.precipitationProbability ?: 0
@@ -160,29 +168,90 @@ class WeatherRepository {
         val formattedSunset = WeatherUtils.formatSunTime(rawSunset)
         val daylightDuration = WeatherUtils.calculateDaylightDuration(rawSunrise, rawSunset)
 
-        val bioclimaticRec = BioclimaticClothingEngine.calculate(
-            currentTemp = current.temperature2m ?: temp.toDouble(),
-            currentHumidity = hum,
-            currentWindSpeed = current.windSpeed10m ?: wind.toDouble(),
-            currentWindGusts = current.windGusts10m,
-            currentApparentTemp = feelsLike,
-            currentRainProb = rain,
-            currentPrecipitation = current.precipitation,
-            currentUvIndex = current.uvIndex ?: response.daily?.uvIndexMax?.firstOrNull(),
-            currentCloudCover = current.cloudCover,
+        // 1. Módulo Matemático Bioclimático Local (RAM < 0.1 ms)
+        val physicalIndicators = BioclimaticMathEngine.calculateIndicators(
+            temp = current.temperature2m ?: temp.toDouble(),
+            humidity = hum,
+            windSpeed = current.windSpeed10m ?: wind.toDouble(),
+            cloudCover = current.cloudCover ?: 40,
+            uvIndex = current.uvIndex ?: response.daily?.uvIndexMax?.firstOrNull() ?: 3.0,
             isDay = isDay,
             hourlyItems = hourlyItems,
-            dailyMaxUv = response.daily?.uvIndexMax?.firstOrNull(),
-            dailyPrecipSum = response.daily?.precipitationSum?.firstOrNull(),
+            apparentTemp = feelsLike,
             sunsetTime = formattedSunset
         )
 
-        val finalAdvice = bioclimaticRec.toClothingAdvice()
+        // 2. Lanzamiento Simultáneo en Paralelo (Groq Llama 3.1 8B Instant + Fallback Kotlin)
+        val localDeferred = async(Dispatchers.Default) {
+            BioclimaticClothingEngine.calculate(
+                currentTemp = current.temperature2m ?: temp.toDouble(),
+                currentHumidity = hum,
+                currentWindSpeed = current.windSpeed10m ?: wind.toDouble(),
+                currentWindGusts = current.windGusts10m,
+                currentApparentTemp = feelsLike,
+                currentRainProb = rain,
+                currentPrecipitation = current.precipitation,
+                currentUvIndex = current.uvIndex ?: response.daily?.uvIndexMax?.firstOrNull(),
+                currentCloudCover = current.cloudCover,
+                isDay = isDay,
+                hourlyItems = hourlyItems,
+                dailyMaxUv = response.daily?.uvIndexMax?.firstOrNull(),
+                dailyPrecipSum = response.daily?.precipitationSum?.firstOrNull(),
+                sunsetTime = formattedSunset,
+                indicators = physicalIndicators
+            )
+        }
+
+        val groqDeferred = if (skipAi) {
+            null
+        } else {
+            async(Dispatchers.IO) {
+                try {
+                    withTimeoutOrNull(2500L) {
+                        try {
+                            GroqBioclimaticAdvisor.getBioclimaticRecommendation(
+                                cityName = cityName,
+                                temp = current.temperature2m ?: temp.toDouble(),
+                                apparentTemp = feelsLike,
+                                humidity = hum,
+                                windSpeed = current.windSpeed10m ?: wind.toDouble(),
+                                indicators = physicalIndicators,
+                                sunsetTime = formattedSunset
+                            )
+                        } catch (e: Exception) {
+                            Log.e("GroqAPI", "Error en llamada:", e)
+                            null
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("GroqAPI", "Error en llamada:", e)
+                    null
+                }
+            }
+        }
+
+        val localRec = localDeferred.await()
+        val groqResult = groqDeferred?.await()
+
+        // 3. Resolución: Si Groq responde a tiempo -> IA Bioclimática, de lo contrario o en modo Widget -> Motor Local
+        val finalRecommendation = if (groqResult != null && groqResult.titular.isNotBlank()) {
+            Log.d("GroqAPI", "Recomendación de IA Bioclimática recibida con éxito: ${groqResult.titular}")
+            localRec.mergeWithGroq(groqResult)
+        } else {
+            if (skipAi) {
+                Log.d("GroqAPI", "Modo Widget/Background activo: CERO llamadas a Groq. Motor Local ejecutado 100% en memoria.")
+            } else {
+                Log.w("GroqAPI", "Fallback activado: utilizando recomendación de Motor Local")
+            }
+            localRec.copy(source = RecommendationSource.LOCAL_ENGINE)
+        }
+
+        val finalAdvice = finalRecommendation.toClothingAdvice()
 
         val desc = WeatherUtils.getDescription(wCode)
         val iconType = WeatherUtils.getIconType(wCode, isDay)
 
-        return CurrentWeatherUI(
+        return@coroutineScope CurrentWeatherUI(
             temp = temp,
             feelsLike = feelsLike,
             conditionDesc = desc,
@@ -197,7 +266,7 @@ class WeatherRepository {
             daylightDuration = daylightDuration,
             advice = finalAdvice,
             airQuality = airQualityUI,
-            recommendation = bioclimaticRec
+            recommendation = finalRecommendation
         )
     }
 
@@ -357,6 +426,7 @@ class WeatherRepository {
             }
         }
 
-        return Pair(hourlyItems, dailyItems)
+        val processedDailyItems = com.example.engine.BioclimaticClothingEngine.process7DayForecast(dailyItems)
+        return Pair(hourlyItems, processedDailyItems)
     }
 }

@@ -283,7 +283,10 @@ data class DailyItem(
     val advice: ClothingAdvice,
     val hourlyList: List<HourlyItem>,
     val uvIndexMax: Double? = null,
-    val precipitationSum: Double? = null
+    val precipitationSum: Double? = null,
+    val clothingIcon: String = "👕",
+    val technicalSummary: String = "",
+    val bioclimaticAlert: String? = null
 )
 
 data class CurrentWeatherUI(

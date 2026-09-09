@@ -128,8 +128,8 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                 val (cityName, currentWeather, forecast) = repository.fetchWeather(lat, lon, knownCityName)
                 val todayForecast = forecast.second.firstOrNull()
 
-                // Cálculo reactivo y asíncrono con Corrutinas del motor bioclimático local
-                val bioclimaticRecommendation = withContext(Dispatchers.Default) {
+                // Utiliza la recomendación de la arquitectura híbrida (Gemini Flash + Fallback Kotlin)
+                val bioclimaticRecommendation = currentWeather.recommendation ?: withContext(Dispatchers.Default) {
                     BioclimaticClothingEngine.calculate(
                         currentTemp = currentWeather.temp.toDouble(),
                         currentHumidity = currentWeather.humidity,
@@ -174,6 +174,22 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                     val tempMax = todayForecast?.maxTemp ?: finalCurrentWeather.temp
                     val tempMin = todayForecast?.minTemp ?: finalCurrentWeather.temp
 
+                    val rec = finalCurrentWeather.recommendation
+                    val isGroq = rec?.source == com.example.engine.RecommendationSource.AI_BIOCLIMATIC ||
+                            rec?.source == com.example.engine.RecommendationSource.GEMINI_AI
+                    val sourceBadge = if (isGroq) "✨ Groq" else "⚙️ Local"
+
+                    val (clothingIcon, clothingSummary) = WeatherWidgetProvider.getConciseClothingSummary(
+                        temp = finalCurrentWeather.temp.toDouble(),
+                        apparentTemp = finalCurrentWeather.feelsLike,
+                        windSpeed = finalCurrentWeather.windSpeed.toDouble(),
+                        rainProb = finalCurrentWeather.rainProb,
+                        humidity = finalCurrentWeather.humidity,
+                        recommendation = rec
+                    )
+
+                    val clothingHeadline = rec?.headline ?: finalCurrentWeather.advice.baseAdvice
+
                     WeatherWidgetProvider.updateAllWidgets(
                         context = getApplication(),
                         cityName = cityName,
@@ -185,7 +201,11 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                         isDay = finalCurrentWeather.isDay,
                         feelsLike = kotlin.math.round(finalCurrentWeather.feelsLike).toInt(),
                         rainProb = finalCurrentWeather.rainProb,
-                        windSpeed = finalCurrentWeather.windSpeed
+                        windSpeed = finalCurrentWeather.windSpeed,
+                        clothingRecommendation = clothingHeadline,
+                        clothingSummary = clothingSummary,
+                        clothingIcon = clothingIcon,
+                        sourceBadge = sourceBadge
                     )
 
                     // Ensure background periodic worker is scheduled

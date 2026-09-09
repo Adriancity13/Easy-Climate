@@ -9,6 +9,8 @@ import android.content.Intent
 import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
+import com.example.engine.BioclimaticClothingEngine
+import com.example.engine.ClothingRecommendation
 import com.example.widget.worker.WeatherWorkScheduler
 
 class WeatherWidgetProvider : AppWidgetProvider() {
@@ -37,6 +39,23 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val feelsLike = prefs.getInt("cached_feels_like", 24)
         val rainProb = prefs.getInt("cached_rain_prob", 0)
         val windSpeed = prefs.getInt("cached_wind_speed", 12)
+        val humidity = prefs.getInt("cached_humidity", 50)
+
+        val cachedIcon = prefs.getString("cached_clothing_icon", null)
+        val cachedSummary = prefs.getString("cached_clothing_summary", null)
+        val cachedSource = prefs.getString("cached_clothing_source", "⚙️ Local") ?: "⚙️ Local"
+
+        val (clothingIcon, clothingSummary) = if (cachedIcon != null && cachedSummary != null) {
+            Pair(cachedIcon, cachedSummary)
+        } else {
+            getConciseClothingSummary(
+                temp = temp.toDouble(),
+                apparentTemp = feelsLike.toDouble(),
+                windSpeed = windSpeed.toDouble(),
+                rainProb = rainProb,
+                humidity = humidity
+            )
+        }
 
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(
@@ -52,12 +71,55 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 isDay = isDay,
                 feelsLike = feelsLike,
                 rainProb = rainProb,
-                windSpeed = windSpeed
+                windSpeed = windSpeed,
+                clothingSummary = clothingSummary,
+                clothingIcon = clothingIcon,
+                sourceBadge = cachedSource
             )
         }
     }
 
     companion object {
+        fun getConciseClothingSummary(
+            temp: Double,
+            apparentTemp: Double,
+            windSpeed: Double,
+            rainProb: Int,
+            humidity: Int = 50,
+            recommendation: ClothingRecommendation? = null
+        ): Pair<String, String> {
+            val adv = recommendation?.advancedMetrics
+            val isMandatoryChest = adv?.isMandatoryChestProtection ?: (windSpeed >= 18.0 && temp < 18.0)
+            val isMucosaRisk = adv?.isRespiratoryMucosaRisk ?: (temp <= 12.0 && humidity < 40)
+            val isSunsetRisk = adv?.isSunsetColdSweatRisk ?: false
+            val isHighSweat = adv?.isHighSweatRisk ?: (humidity > 70 && temp >= 20.0)
+
+            val icon = when {
+                rainProb >= 50 -> "🌧️"
+                isMandatoryChest -> "🛡️"
+                isMucosaRisk -> "🧣"
+                isHighSweat || temp >= 24.0 -> "🎽"
+                temp >= 20.0 -> "👕"
+                temp >= 14.0 -> "🧥"
+                else -> "❄️"
+            }
+
+            val summary = when {
+                rainProb >= 50 -> "Cortavientos impermeable"
+                isMandatoryChest -> "Capa transpirable + cortavientos"
+                isMucosaRisk -> "Cortavientos cerrado + braga cuello"
+                isSunsetRisk -> "Manga corta + cortavientos modular"
+                isHighSweat && temp >= 22.0 -> "Sintético ligero de secado rápido"
+                temp >= 26.0 -> "Manga corta ultraligera"
+                temp >= 20.0 -> "Manga corta transpirable"
+                temp >= 15.0 -> "Manga corta + chaqueta ligera"
+                temp >= 10.0 -> "Capa base + cortavientos cerrado"
+                else -> "Multicapa invernal + abrigo"
+            }
+
+            return Pair(icon, summary)
+        }
+
         fun updateAllWidgets(
             context: Context,
             cityName: String,
@@ -69,10 +131,31 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             isDay: Boolean,
             feelsLike: Int,
             rainProb: Int,
-            windSpeed: Int
+            windSpeed: Int,
+            clothingRecommendation: String? = null,
+            clothingSummary: String? = null,
+            clothingIcon: String? = null,
+            sourceBadge: String? = null
         ) {
-            // Save to prefs for widget persistence
             val prefs = context.getSharedPreferences("weather_app_prefs", Context.MODE_PRIVATE)
+            val humidity = prefs.getInt("cached_humidity", 50)
+
+            val (effectiveIcon, effectiveSummary) = if (clothingIcon != null && clothingSummary != null) {
+                Pair(clothingIcon, clothingSummary)
+            } else {
+                getConciseClothingSummary(
+                    temp = temp.toDouble(),
+                    apparentTemp = feelsLike.toDouble(),
+                    windSpeed = windSpeed.toDouble(),
+                    rainProb = rainProb,
+                    humidity = humidity
+                )
+            }
+
+            val effectiveSourceBadge = sourceBadge ?: prefs.getString("cached_clothing_source", "⚙️ Local") ?: "⚙️ Local"
+            val effectiveClothing = clothingRecommendation ?: effectiveSummary
+
+            // Save to prefs for widget persistence
             prefs.edit()
                 .putString("cached_name", cityName)
                 .putInt("cached_temp", temp)
@@ -84,6 +167,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 .putInt("cached_feels_like", feelsLike)
                 .putInt("cached_rain_prob", rainProb)
                 .putInt("cached_wind_speed", windSpeed)
+                .putString("cached_clothing", effectiveClothing)
+                .putString("cached_clothing_icon", effectiveIcon)
+                .putString("cached_clothing_summary", effectiveSummary)
+                .putString("cached_clothing_source", effectiveSourceBadge)
                 .apply()
 
             val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -104,7 +191,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     isDay = isDay,
                     feelsLike = feelsLike,
                     rainProb = rainProb,
-                    windSpeed = windSpeed
+                    windSpeed = windSpeed,
+                    clothingSummary = effectiveSummary,
+                    clothingIcon = effectiveIcon,
+                    sourceBadge = effectiveSourceBadge
                 )
             }
         }
@@ -122,20 +212,28 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             isDay: Boolean,
             feelsLike: Int,
             rainProb: Int,
-            windSpeed: Int
+            windSpeed: Int,
+            clothingSummary: String,
+            clothingIcon: String,
+            sourceBadge: String
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_weather_2x2)
 
-            // Explicitly preserve Barrio and City format (e.g. "Delicias, Madrid" or "Casa de Campo, Madrid")
+            // Explicitly format Location avoiding overflow
             val displayName = formatWidgetLocation(cityName)
 
             views.setTextViewText(R.id.widget_location, displayName)
             views.setTextViewText(R.id.widget_temperature, "$temp°")
             views.setTextViewText(R.id.widget_high_low, "↑$tempMax° ↓$tempMin°")
             views.setTextViewText(R.id.widget_description, description)
-            views.setTextViewText(R.id.widget_feels_like, "Sens $feelsLike°")
-            views.setTextViewText(R.id.widget_rain_prob, "🌧 $rainProb%")
+            views.setTextViewText(R.id.widget_feels_like, "Sens. $feelsLike°")
+            views.setTextViewText(R.id.widget_rain_prob, "💧 $rainProb%")
             views.setTextViewText(R.id.widget_wind, "💨 $windSpeed km/h")
+
+            // Bioclimatic bottom block: icon, 3-5 word summary, source badge (✨ Groq / ⚙️ Local)
+            views.setTextViewText(R.id.widget_clothing_icon, clothingIcon)
+            views.setTextViewText(R.id.widget_clothing_recommendation, clothingSummary)
+            views.setTextViewText(R.id.widget_source_badge, sourceBadge)
 
             // Weather icon mapping
             val iconResId = getWidgetIconRes(weatherCode, isDay)

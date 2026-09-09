@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Safe zone: 66x66 dp centered at (54, 54), from x=21..87, y=21..87 -->
+    <!-- Minimalist Bioclimatic Weather & Clothing Silhouette in 100% Solid White -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M38,30 C34,30 28,34 25,38 L23,41 C22,42.5 22.8,44.5 24.3,45.2 L30,48 C31.5,48.7 33.3,48 34,46.5 L36,42.5 L36,73 C36,75.2 37.8,77 40,77 L68,77 C70.2,77 72,75.2 72,73 L72,42.5 L74,46.5 C74.7,48 76.5,48.7 78,48 L83.7,45.2 C85.2,44.5 86,42.5 85,41 L83,38 C80,34 74,30 70,30 C66,30 63,33 54,37 C45,33 42,30 38,30 Z M46,31.2 C49,34 52,35.5 54,35.5 C56,35.5 59,34 62,31.2 C65,31.5 68,32.5 70,34.2 L68,38 L40,38 L38,34.2 C40,32.5 43,31.5 46,31.2 Z" />
+    <!-- Weather sun / thermal element in center of shirt -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M54,48 A5,5 0 1,0 54,58 A5,5 0 1,0 54,48 Z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M53,43 L55,43 L55,46 L53,46 Z M53,60 L55,60 L55,63 L53,63 Z M44,53 L47,53 L47,55 L44,55 Z M61,53 L64,53 L64,55 L61,55 Z M46.5,46.5 L48.6,48.6 L47.2,50 L45.1,47.9 Z M60.8,60.8 L62.9,62.9 L61.5,64.3 L59.4,62.2 Z M47.9,62.9 L45.8,60.8 L47.2,59.4 L49.3,61.5 Z M62.2,48.6 L60.1,46.5 L61.5,45.1 L63.6,47.2 Z" />
+    <!-- Subtle air / breeze flow accent -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M46,67 C48,66 52,66 54,67 C56,68 60,68 62,67 L62,69 C59.5,70 56.5,70 54,69 C51.5,68 48.5,68 46,69 Z" />
+</vector>

@@ -25,7 +25,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -136,7 +136,7 @@ private fun DailyAccordionRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onToggle() }
-                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
                 .testTag("daily_accordion_header_$index"),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -145,31 +145,63 @@ private fun DailyAccordionRow(
             Text(
                 text = item.dayName,
                 color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.width(65.dp)
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.width(62.dp)
             )
 
-            // Icon
-            WeatherConditionIcon(
-                iconType = item.iconType,
-                size = 22.dp,
-                tint = Color.White
-            )
+            // Clothing & Weather Icons
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = item.clothingIcon,
+                    fontSize = 15.sp
+                )
+                WeatherConditionIcon(
+                    iconType = item.iconType,
+                    size = 18.dp,
+                    tint = Color.White
+                )
+            }
 
-            // Description
-            Text(
-                text = item.description,
-                color = Color(0xEEFFFFFF),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
+            // Description / Technical Summary + Alert Badge
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 8.dp)
-            )
+                    .padding(horizontal = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = if (item.technicalSummary.isNotBlank()) item.technicalSummary else item.description,
+                    color = Color(0xEEFFFFFF),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+
+                if (item.bioclimaticAlert != null) {
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0x35EF4444), RoundedCornerShape(6.dp))
+                            .border(0.5.dp, Color(0x80EF4444), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 5.dp, vertical = 1.5.dp)
+                    ) {
+                        Text(
+                            text = item.bioclimaticAlert,
+                            color = Color(0xFFFED7AA),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
 
             // Max / Min Temp
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -183,19 +215,19 @@ private fun DailyAccordionRow(
                 Text(
                     text = "${item.minTemp}°",
                     color = Color(0xCCFFFFFF),
-                    fontSize = 13.sp,
+                    fontSize = 12.5.sp,
                     fontWeight = FontWeight.Normal
                 )
             }
 
             // Rotating Chevron
             Icon(
-                imageVector = Icons.Default.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "Expandir día",
                 tint = Color(0xCCFFFFFF),
                 modifier = Modifier
                     .size(18.dp)
-                    .padding(start = 4.dp)
+                    .padding(start = 2.dp)
                     .rotate(rotationAngle)
             )
         }
