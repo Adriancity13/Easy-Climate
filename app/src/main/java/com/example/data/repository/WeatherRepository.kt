@@ -205,13 +205,12 @@ class WeatherRepository {
         val wind = workingWind.roundToInt()
         val rain = current.precipitationProbability ?: 0
         val wCode = current.weatherCode ?: 0
-        val isDay = (current.isDay ?: 1) == 1
-
         val rawSunrise = response.daily?.sunrise?.firstOrNull()
         val rawSunset = response.daily?.sunset?.firstOrNull()
         val formattedSunrise = WeatherUtils.formatSunTime(rawSunrise)
         val formattedSunset = WeatherUtils.formatSunTime(rawSunset)
         val daylightDuration = WeatherUtils.calculateDaylightDuration(rawSunrise, rawSunset)
+        val isDay = WeatherUtils.isDaytime(rawSunrise, rawSunset, current.isDay)
 
         // 1. Módulo Matemático Bioclimático Local (RAM < 0.1 ms)
         val physicalIndicators = BioclimaticMathEngine.calculateIndicators(

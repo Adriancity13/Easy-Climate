@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.example.utils.SceneType
+import com.example.utils.WeatherUtils
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -56,20 +57,39 @@ fun AtmosphericWeatherBackground(
     sceneType: SceneType,
     gradientColors: List<Color>,
     isDay: Boolean,
+    isSunrise: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    // Nocturnal and sunrise gradient fallback protection
+    val effectiveColors = remember(gradientColors, isDay, isSunrise) {
+        if (!isDay) {
+            val first = gradientColors.firstOrNull() ?: Color(0xFF030712)
+            val isDaytimeBlue = first.blue > 0.55f && first.red < 0.35f && first.green < 0.55f
+            if (isDaytimeBlue) {
+                listOf(Color(0xFF030712), Color(0xFF0B1220), Color(0xFF131E35))
+            } else {
+                gradientColors
+            }
+        } else if (isSunrise) {
+            // Forzar paleta cálida de tonos dorados y anaranjados suaves para el amanecer
+            WeatherUtils.defaultGradSunrise
+        } else {
+            gradientColors
+        }
+    }
+
     val topColor by animateColorAsState(
-        targetValue = gradientColors.firstOrNull() ?: Color(0xFF2563EB),
+        targetValue = effectiveColors.firstOrNull() ?: if (isDay) Color(0xFF2563EB) else Color(0xFF030712),
         animationSpec = tween(1000, easing = FastOutSlowInEasing),
         label = "topGrad"
     )
     val midColor by animateColorAsState(
-        targetValue = gradientColors.getOrNull(1) ?: Color(0xFF3B82F6),
+        targetValue = effectiveColors.getOrNull(1) ?: if (isDay) Color(0xFF3B82F6) else Color(0xFF0B1220),
         animationSpec = tween(1000, easing = FastOutSlowInEasing),
         label = "midGrad"
     )
     val bottomColor by animateColorAsState(
-        targetValue = gradientColors.lastOrNull() ?: Color(0xFF60A5FA),
+        targetValue = effectiveColors.lastOrNull() ?: if (isDay) Color(0xFF60A5FA) else Color(0xFF131E35),
         animationSpec = tween(1000, easing = FastOutSlowInEasing),
         label = "botGrad"
     )
@@ -123,11 +143,11 @@ fun AtmosphericWeatherBackground(
     // Pre-calculated star & particle specs
     val stars = remember {
         val r = Random(42)
-        List(30) {
+        List(36) {
             StarSpec(
                 xRatio = r.nextFloat() * 0.96f + 0.02f,
-                yRatio = r.nextFloat() * 0.45f + 0.02f,
-                sizeDp = r.nextFloat() * 2f + 1.2f,
+                yRatio = r.nextFloat() * 0.52f + 0.02f,
+                sizeDp = r.nextFloat() * 2.2f + 1.2f,
                 phaseOffset = r.nextFloat() * 6.28f,
                 periodSec = r.nextFloat() * 2.5f + 2f
             )
@@ -160,6 +180,13 @@ fun AtmosphericWeatherBackground(
         }
     }
 
+    // Safety fallback: if not day, CLEAR_DAY MUST become CLEAR_NIGHT
+    val effectiveSceneType = if (!isDay && sceneType == SceneType.CLEAR_DAY) {
+        SceneType.CLEAR_NIGHT
+    } else {
+        sceneType
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -173,9 +200,14 @@ fun AtmosphericWeatherBackground(
             val canvasW = size.width
             val canvasH = size.height
 
-            when (sceneType) {
+            when (effectiveSceneType) {
                 SceneType.CLEAR_DAY -> {
-                    drawAtmosphericSunGlow(canvasW, canvasH, glowPulse)
+                    if (isDay) {
+                        drawAtmosphericSunGlow(canvasW, canvasH, glowPulse, isSunrise = isSunrise)
+                    } else {
+                        drawAtmosphericMoon(canvasW, canvasH, glowPulse)
+                        drawAtmosphericStars(canvasW, canvasH, stars, progressLoop, starTwinkle)
+                    }
                 }
                 SceneType.CLEAR_NIGHT -> {
                     drawAtmosphericMoon(canvasW, canvasH, glowPulse)
@@ -183,34 +215,48 @@ fun AtmosphericWeatherBackground(
                 }
                 SceneType.PARTLY_CLOUDY -> {
                     if (isDay) {
-                        drawAtmosphericSunGlow(canvasW, canvasH, glowPulse, scale = 0.8f)
+                        drawAtmosphericSunGlow(canvasW, canvasH, glowPulse, scale = 0.8f, isSunrise = isSunrise)
                     } else {
-                        drawAtmosphericMoon(canvasW, canvasH, glowPulse, scale = 0.8f)
-                        drawAtmosphericStars(canvasW, canvasH, stars.take(15), progressLoop, starTwinkle)
+                        drawAtmosphericMoon(canvasW, canvasH, glowPulse, scale = 0.85f)
+                        drawAtmosphericStars(canvasW, canvasH, stars.take(18), progressLoop, starTwinkle)
                     }
-                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.5f)
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.5f, isNight = !isDay)
                 }
                 SceneType.CLOUDY -> {
-                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.85f)
+                    if (!isDay) {
+                        drawAtmosphericMoon(canvasW, canvasH, glowPulse, scale = 0.65f)
+                        drawAtmosphericStars(canvasW, canvasH, stars.take(10), progressLoop, starTwinkle * 0.6f)
+                    }
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.85f, isNight = !isDay)
                 }
                 SceneType.DRIZZLE -> {
-                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.7f)
+                    if (!isDay) {
+                        drawAtmosphericStars(canvasW, canvasH, stars.take(8), progressLoop, starTwinkle * 0.4f)
+                    }
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.7f, isNight = !isDay)
                     drawAtmosphericRain(canvasW, canvasH, rainDrops, progressLoop * 4f, isDrizzle = true)
                 }
                 SceneType.RAIN -> {
-                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.85f)
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.85f, isNight = !isDay)
                     drawAtmosphericRain(canvasW, canvasH, rainDrops, progressLoop * 5.5f, isDrizzle = false)
                 }
                 SceneType.STORM -> {
                     drawAtmosphericStorm(canvasW, canvasH, stormCycle)
-                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.95f)
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.95f, isNight = !isDay)
                     drawAtmosphericRain(canvasW, canvasH, rainDrops, progressLoop * 6.5f, isDrizzle = false)
                 }
                 SceneType.SNOW -> {
-                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.65f)
+                    if (!isDay) {
+                        drawAtmosphericMoon(canvasW, canvasH, glowPulse, scale = 0.75f)
+                        drawAtmosphericStars(canvasW, canvasH, stars.take(14), progressLoop, starTwinkle * 0.7f)
+                    }
+                    drawContinuousCloudLayer(canvasW, canvasH, progressLoop, density = 0.65f, isNight = !isDay)
                     drawAtmosphericSnow(canvasW, canvasH, snowFlakes, progressLoop * 2.5f)
                 }
                 SceneType.FOG -> {
+                    if (!isDay) {
+                        drawAtmosphericMoon(canvasW, canvasH, glowPulse, scale = 0.65f)
+                    }
                     drawAtmosphericFog(canvasW, canvasH, progressLoop)
                 }
             }
@@ -219,20 +265,51 @@ fun AtmosphericWeatherBackground(
 }
 
 // Gentle ambient sun aura without overwhelming foreground content
-private fun DrawScope.drawAtmosphericSunGlow(canvasW: Float, canvasH: Float, pulse: Float, scale: Float = 1.0f) {
+private fun DrawScope.drawAtmosphericSunGlow(
+    canvasW: Float,
+    canvasH: Float,
+    pulse: Float,
+    scale: Float = 1.0f,
+    isSunrise: Boolean = false
+) {
     val sunCenterX = canvasW * 0.85f
     val sunCenterY = canvasH * 0.12f
     val baseRadius = 55f * scale
 
+    val haloColors = if (isSunrise) {
+        listOf(
+            Color(0x45F97316),
+            Color(0x28FBBF24),
+            Color(0x0CFDE047),
+            Color.Transparent
+        )
+    } else {
+        listOf(
+            Color(0x35FEF08A),
+            Color(0x18FDE047),
+            Color(0x05FDE047),
+            Color.Transparent
+        )
+    }
+
+    val coreColors = if (isSunrise) {
+        listOf(
+            Color(0xFFFFFBEB),
+            Color(0xEEFB923C),
+            Color(0x00F97316)
+        )
+    } else {
+        listOf(
+            Color(0xEEFFFBEB),
+            Color(0xBAFDE047),
+            Color(0x00FDE047)
+        )
+    }
+
     // Atmospheric wide halo
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(
-                Color(0x35FEF08A),
-                Color(0x18FDE047),
-                Color(0x05FDE047),
-                Color.Transparent
-            ),
+            colors = haloColors,
             center = Offset(sunCenterX, sunCenterY),
             radius = baseRadius * 3.5f * pulse
         ),
@@ -243,11 +320,7 @@ private fun DrawScope.drawAtmosphericSunGlow(canvasW: Float, canvasH: Float, pul
     // Radiant soft sun core
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(
-                Color(0xEEFFFBEB),
-                Color(0xBAFDE047),
-                Color(0x00FDE047)
-            ),
+            colors = coreColors,
             center = Offset(sunCenterX, sunCenterY),
             radius = baseRadius * pulse
         ),
@@ -256,24 +329,25 @@ private fun DrawScope.drawAtmosphericSunGlow(canvasW: Float, canvasH: Float, pul
     )
 }
 
-// Clean minimalist night moon
+// Clean elegant night moon with lunar texture and radiant silver halo
 private fun DrawScope.drawAtmosphericMoon(canvasW: Float, canvasH: Float, pulse: Float, scale: Float = 1.0f) {
     val moonCenterX = canvasW * 0.85f
     val moonCenterY = canvasH * 0.12f
     val radius = 32f * scale
 
-    // Moon soft glow
+    // Atmospheric wide silver/blue lunar halo
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0x28CBD5E1),
-                Color(0x0DCBD5E1),
+                Color(0x3894A3B8),
+                Color(0x1864748B),
+                Color(0x0538BDF8),
                 Color.Transparent
             ),
             center = Offset(moonCenterX, moonCenterY),
-            radius = radius * 2.6f * pulse
+            radius = radius * 3.4f * pulse
         ),
-        radius = radius * 2.6f * pulse,
+        radius = radius * 3.4f * pulse,
         center = Offset(moonCenterX, moonCenterY)
     )
 
@@ -281,15 +355,27 @@ private fun DrawScope.drawAtmosphericMoon(canvasW: Float, canvasH: Float, pulse:
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFFF8FAFC),
-                Color(0xFFE2E8F0),
+                Color(0xFFFFFFFF),
+                Color(0xFFF1F5F9),
                 Color(0xFF94A3B8)
             ),
-            center = Offset(moonCenterX - radius * 0.2f, moonCenterY - radius * 0.2f),
+            center = Offset(moonCenterX - radius * 0.25f, moonCenterY - radius * 0.25f),
             radius = radius
         ),
         radius = radius,
         center = Offset(moonCenterX, moonCenterY)
+    )
+
+    // Subtle craters
+    drawCircle(
+        color = Color(0x22475569),
+        radius = radius * 0.20f,
+        center = Offset(moonCenterX - radius * 0.15f, moonCenterY + radius * 0.18f)
+    )
+    drawCircle(
+        color = Color(0x1C475569),
+        radius = radius * 0.14f,
+        center = Offset(moonCenterX + radius * 0.26f, moonCenterY - radius * 0.10f)
     )
 }
 
@@ -306,7 +392,7 @@ private fun DrawScope.drawAtmosphericStars(
         val y = s.yRatio * canvasH
         val alpha = ((sin(loopTime * s.periodSec * 6.28f + s.phaseOffset) + 1f) / 2f * 0.6f + 0.2f) * twinkle
         drawCircle(
-            color = Color.White.copy(alpha = alpha.coerceIn(0.1f, 0.85f)),
+            color = Color.White.copy(alpha = alpha.coerceIn(0.1f, 0.95f)),
             radius = s.sizeDp,
             center = Offset(x, y)
         )
@@ -318,10 +404,14 @@ private fun DrawScope.drawContinuousCloudLayer(
     canvasW: Float,
     canvasH: Float,
     loop: Float,
-    density: Float
+    density: Float,
+    isNight: Boolean = false
 ) {
     val waveOffset1 = sin(loop * 6.28f) * 15f
     val waveOffset2 = sin((loop + 0.33f) * 6.28f) * 18f
+
+    val cloud1Color = if (isNight) Color(0xFF1E293B).copy(alpha = 0.20f * density) else Color.White.copy(alpha = 0.08f * density)
+    val cloud2Color = if (isNight) Color(0xFF0F172A).copy(alpha = 0.24f * density) else Color.White.copy(alpha = 0.10f * density)
 
     // Layer 1 (Back atmospheric cloud horizon)
     val path1 = Path().apply {
@@ -342,7 +432,7 @@ private fun DrawScope.drawContinuousCloudLayer(
     }
     drawPath(
         path = path1,
-        color = Color.White.copy(alpha = 0.08f * density)
+        color = cloud1Color
     )
 
     // Layer 2 (Mid atmospheric cloud contour)
@@ -359,7 +449,7 @@ private fun DrawScope.drawContinuousCloudLayer(
     }
     drawPath(
         path = path2,
-        color = Color.White.copy(alpha = 0.10f * density)
+        color = cloud2Color
     )
 }
 

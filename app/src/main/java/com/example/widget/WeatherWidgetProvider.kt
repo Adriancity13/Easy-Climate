@@ -247,12 +247,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val displayName = formatWidgetLocation(cityName)
 
             views.setTextViewText(R.id.widget_location, displayName)
+            views.setTextViewText(R.id.widget_high_low, "↑$tempMax°  ↓$tempMin°")
             views.setTextViewText(R.id.widget_temperature, "$temp°")
-            views.setTextViewText(R.id.widget_high_low, "↑$tempMax° ↓$tempMin°")
-            views.setTextViewText(R.id.widget_description, description)
-            views.setTextViewText(R.id.widget_feels_like, "Sens. $feelsLike°")
-            views.setTextViewText(R.id.widget_rain_prob, "💧 $rainProb%")
-            views.setTextViewText(R.id.widget_wind, "💨 $windSpeed km/h")
+            views.setTextViewText(R.id.widget_feels_like, "Sensación $feelsLike°")
 
             // Weather icon mapping (uses daytime flag from time theme for consistent sun/moon representation)
             val effectiveIsDay = themeConfig.timeSlot.isDaytime

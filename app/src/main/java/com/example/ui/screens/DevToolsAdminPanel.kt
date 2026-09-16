@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,6 +74,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -84,6 +86,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.R
 import com.example.data.models.CurrentWeatherUI
 import com.example.engine.ClothingRecommendation
 import com.example.engine.UrbanEnvironmentType
@@ -1309,7 +1312,20 @@ private fun ClimateSandboxTab(
                     )
                     .padding(14.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val widgetIconRes = when (weatherCode) {
+                    0 -> if (currentThemeConfig.timeSlot.isDaytime) R.drawable.ic_widget_sun else R.drawable.ic_widget_moon
+                    1, 2 -> if (currentThemeConfig.timeSlot.isDaytime) R.drawable.ic_widget_cloud_sun else R.drawable.ic_widget_cloud_moon
+                    3 -> R.drawable.ic_widget_cloud
+                    45, 48 -> R.drawable.ic_widget_fog
+                    51, 53, 55 -> R.drawable.ic_widget_drizzle
+                    61, 63, 65, 80, 81 -> R.drawable.ic_widget_rain
+                    71, 73, 75, 77, 85, 86 -> R.drawable.ic_widget_snow
+                    82, 95, 96, 99 -> R.drawable.ic_widget_storm
+                    else -> if (currentThemeConfig.timeSlot.isDaytime) R.drawable.ic_widget_sun else R.drawable.ic_widget_moon
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Fila 1 (Superior): Ubicación + Máxima y Mínima
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1319,52 +1335,51 @@ private fun ClimateSandboxTab(
                             text = "📍 Madrid (Sandbox)",
                             color = Color(currentThemeConfig.primaryTextColorInt),
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 13.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "↑${(tempC + 3).roundToInt()}° ↓${(tempC - 4).roundToInt()}°",
+                            text = "↑${(tempC + 3).roundToInt()}°  ↓${(tempC - 4).roundToInt()}°",
                             color = Color(currentThemeConfig.secondaryTextColorInt),
-                            fontSize = 11.sp
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
+                    // Fila 2 (Cuerpo Central): Icono grande a la izquierda y Temperatura Actual a la derecha
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "${tempC.roundToInt()}°",
-                                color = Color(currentThemeConfig.primaryTextColorInt),
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Black
-                            )
-                            Text(
-                                text = getWmoLabel(weatherCode),
-                                color = Color(currentThemeConfig.secondaryTextColorInt),
-                                fontSize = 11.sp
-                            )
-                        }
-
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "Sens. ${(tempC - (windKmH * 0.12) + (humidity * 0.04)).roundToInt()}°",
-                                color = Color(currentThemeConfig.secondaryTextColorInt),
-                                fontSize = 11.sp
-                            )
-                            Text(
-                                text = "💧 ${if (weatherCode in listOf(51, 53, 55, 61, 63, 65, 80, 81, 82, 95)) 85 else 10}%",
-                                color = Color(currentThemeConfig.rainTextColorInt),
-                                fontSize = 11.sp
-                            )
-                            Text(
-                                text = "💨 ${windKmH.roundToInt()} km/h",
-                                color = Color(currentThemeConfig.secondaryTextColorInt),
-                                fontSize = 11.sp
-                            )
-                        }
+                        Image(
+                            painter = painterResource(id = widgetIconRes),
+                            contentDescription = null,
+                            modifier = Modifier.size(52.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = "${tempC.roundToInt()}°",
+                            color = Color(currentThemeConfig.primaryTextColorInt),
+                            fontSize = 38.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
+
+                    // Fila 3 (Inferior): Sensación Térmica completa y legible en una sola línea
+                    val feelsLikeCalc = (tempC - (windKmH * 0.12) + (humidity * 0.04)).roundToInt()
+                    Text(
+                        text = "Sensación $feelsLikeCalc°",
+                        color = Color(currentThemeConfig.secondaryTextColorInt),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
                     HorizontalDivider(
                         color = if (currentThemeConfig.isAmoledBlack) Color(0x22FFFFFF) else Color(0x22FFFFFF),

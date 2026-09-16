@@ -80,6 +80,7 @@ import com.example.ui.components.GlassStrongColor
 import com.example.ui.components.HourlyForecastCarousel
 import com.example.ui.components.LiveLocationPulse
 import com.example.ui.components.WeatherConditionIcon
+import com.example.utils.DevToolsTelemetry
 import com.example.ui.viewmodel.WeatherUIState
 import com.example.ui.viewmodel.WeatherViewModel
 import com.example.utils.WeatherUtils
@@ -118,20 +119,57 @@ fun WeatherScreen(
         viewModel.onBackgroundLocationResult(isGranted)
     }
 
+    // Check if DevTools simulation is active
+    val simulationConfig by DevToolsTelemetry.simulationConfig.collectAsState()
+    val simHour = if (simulationConfig.isActive) simulationConfig.simulatedHour else null
+
     // Determine current weather code & isDay for dynamic background
-    val (weatherCode, isDay) = when (val state = uiState) {
-        is WeatherUIState.Success -> Pair(state.weatherCode, state.isDay)
-        else -> Pair(0, true)
+    val (weatherCode, isDay) = when {
+        simulationConfig.isActive -> {
+            val resolvedIsDay = if (simHour != null) {
+                WeatherUtils.isDaytime("07:15", "20:45", simulatedHour = simHour)
+            } else {
+                simulationConfig.isDay
+            }
+            Pair(simulationConfig.weatherCode, resolvedIsDay)
+        }
+        uiState is WeatherUIState.Success -> {
+            val s = uiState as WeatherUIState.Success
+            val astronomicalIsDay = WeatherUtils.isDaytime(
+                s.currentWeather.sunrise,
+                s.currentWeather.sunset,
+                if (s.isDay) 1 else 0
+            )
+            Pair(s.weatherCode, astronomicalIsDay)
+        }
+        else -> {
+            Pair(0, WeatherUtils.isDaytimeNow())
+        }
     }
 
-    val isSunset = remember(uiState) {
-        if (uiState is WeatherUIState.Success) {
-            WeatherUtils.isSunsetPeriod((uiState as WeatherUIState.Success).currentWeather.sunset)
+    val sunriseStr = (uiState as? WeatherUIState.Success)?.currentWeather?.sunrise
+    val sunsetStr = (uiState as? WeatherUIState.Success)?.currentWeather?.sunset
+
+    val isSunrise = remember(uiState, isDay, simHour) {
+        if (isDay) {
+            WeatherUtils.isSunrisePeriod(
+                sunriseIsoOrTime = sunriseStr,
+                simulatedHour = simHour
+            )
         } else false
     }
 
-    val gradientColors = remember(weatherCode, isDay, isSunset) {
-        WeatherUtils.getGradient(weatherCode, isDay, isSunset)
+    val isSunset = remember(uiState, isDay, simHour, isSunrise) {
+        if (isDay && !isSunrise) {
+            WeatherUtils.isSunsetPeriod(
+                sunsetIsoOrTime = sunsetStr,
+                simulatedHour = simHour
+            )
+        } else false
+    }
+
+    val gradientColors = remember(weatherCode, isDay, isSunset, isSunrise) {
+        WeatherUtils.getGradient(weatherCode, isDay, isSunset = isSunset, isSunrise = isSunrise)
     }
     val sceneType = remember(weatherCode, isDay) {
         WeatherUtils.getSceneType(weatherCode, isDay)
@@ -142,7 +180,8 @@ fun WeatherScreen(
         AtmosphericWeatherBackground(
             sceneType = sceneType,
             gradientColors = gradientColors,
-            isDay = isDay
+            isDay = isDay,
+            isSunrise = isSunrise
         )
 
         // Main App Layout

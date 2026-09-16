@@ -559,8 +559,12 @@ Si el dispositivo no cuenta con conexión a internet, la API Key no está config
 
 La aplicación no utiliza vídeos ni GIFs estáticos que degraden el rendimiento. El fondo visual se dibuja directamente en un **`Canvas` procedural reactivo a 60/120 FPS**:
 
-- **Gradientes Atmosféricos Reactivos:** Interpolación continua de colores basada en la temperatura, código WMO y el estado del sol (día luminoso, crepúsculo/ocaso `isSunsetPeriod`, noche profunda y tormenta).
-- **Cuerpo Solar con Resplandor Pulsante:** Gradientes radiales concéntricos con modulación sinusoidal de radio y alfa (`infiniteRepeatable`).
+- **Gradientes Atmosféricos Reactivos:** Interpolación continua de colores basada en la temperatura, código WMO y el estado astronómico del sol:
+  - **Amanecer Solar Cálido (`isSunrisePeriod`):** Detección astronómica exacta calculada entre la hora del orto y `sunrise + 1.5h` (o franja de 06:00 a 08:30 en ausencia de efemérides). Activa la paleta cromática dorada y anaranjada suave (`#C2410C`, `#D97706`, `#FDE047`) con resplandor solar de baja elevación matutina.
+  - **Día Luminoso:** Paleta de azul cielo vibrante (`#2563EB`, `#3B82F6`, `#60A5FA`) con corona solar radiante.
+  - **Crepúsculo y Ocaso (`isSunsetPeriod`):** Fusión crepuscular de tonos púrpura, magenta y anaranjados profundos (`#4C1D95`, `#9333EA`, `#F97316`).
+  - **Noche Profunda AMOLED:** Bóveda celeste auténticamente nocturna (`#030712`, `#0B1220`, `#131E35`) que evita el azul de día, cuerpo lunar con textura y halo argénteo, y centelleo procedural de estrellas.
+- **Cuerpo Solar con Resplandor Pulsante:** Gradientes radiales concéntricos con modulación sinusoidal de radio y alfa (`infiniteRepeatable`), con adaptación cromática tonal para amanecer y pleno día.
 - **Bóveda Celeste Nocturna:** Generación procedural de estrellas con centelleo aleatorio y luna en fase según la hora solar.
 - **Simulación Física de Lluvia Angular:** Trazos lineales con cálculo trigonométrico de inclinación vinculado a la velocidad del viento y partículas de salpicadura en la base.
 - **Bancos de Niebla y Nieve en Deriva:** Capas horizontales con desplazamiento sinusoidal continuo y copos de nieve con movimiento Browniano simulado.
@@ -586,39 +590,41 @@ Siguiendo los principios más estrictos de diseño de interfaces modernas:
 
 ## 📱 8. Widget de Escritorio Nativo de 3 Filas (Jetpack Glance & RemoteViews)
 
-Easy-Climate incluye un widget de escritorio de alta densidad informativa optimizado para formato de rejilla 2x2 y 4x2:
+Easy-Climate incluye un widget de escritorio rediseñado y simplificado, optimizado para formatos 2x2 y 4x2 sin saturación visual ni textos cortados:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  📍 Delicias, Madrid                         ↑22° · ↓12° │  ◄── Fila 1: Ubicación y Rango Térmico
+│  📍 Madrid                                  ↑30°  ↓15°   │  ◄── Fila 1: Ubicación + Máxima y Mínima
 ├──────────────────────────────────────────────────────────┤
-│  ⛅ 19°  Despejado con sol suave            Sens. 18°    │  ◄── Fila 2: Temperatura y Condición
+│  ☀️        28°                                           │  ◄── Fila 2: Icono Grande + Temperatura Actual
 ├──────────────────────────────────────────────────────────┤
-│  👕 Manga corta técnica + Cortavientos modular (✨ Groq) │  ◄── Fila 3: Recomendación Bioclimática
+│  Sensación 29°                                           │  ◄── Fila 3: Sensación Térmica en 1 sola línea
 └──────────────────────────────────────────────────────────┘
 ```
 
-### Estructura de Información en 3 Filas Compactas
+### Estructura de Información en 3 Filas Limpias
 
-1. **Fila 1 (Cabecera Territorial y Extremos):** Nombre de la localidad/barrio (`maxLines = 1`, `ellipsize = "end"`) con indicador de temperaturas máxima y mínima del día.
-2. **Fila 2 (Estado Meteorológico Central):** Icono de condición climática, temperatura actual destacada a gran escala y sensación térmica percibida.
-3. **Fila 3 (Cápsula Bioclimática de Vestimenta):** Icono de prenda principal (`👕`, `🧥`, `🎽`, `🛡️`), consejo sintetizado de 3 a 5 palabras y distintivo de origen (`✨ Groq` o `⚙️ Local`).
+1. **Fila Superior:** Nombre de la ubicación/municipio a la izquierda (`maxLines = 1`, `ellipsize = "end"`) y valores de temperatura Máxima y Mínima a la derecha (ej. `📍 Madrid   ↑30°  ↓15°`).
+2. **Cuerpo Central:** Icono meteorológico grande (`52dp`) a la izquierda y la Temperatura Actual destacada (`38sp`, en negrita) a la derecha (ej. `28°`).
+3. **Fila Inferior:** Sensación Térmica completa y perfectamente legible en una sola línea (ej. `Sensación 29°`).
+
+> **Diseño 100% Limpio y Local:** Se han purgado del widget los elementos que provocaban solapamientos o cortes de texto (distintivo superior de "Día/Noche", indicadores de viento/lluvia y descripciones largas). El widget opera de forma 100% autónoma y local con datos en caché de Open-Meteo, sin llamadas de red innecesarias ni consumo de tokens LLM.
 
 ### Sistema de Fondos Dinámicos por Franja Horaria (`WidgetTimeTheme.kt`)
 
-A diferencia del Canvas de la aplicación (que dibuja efectos en vivo según el tiempo meteorológico como lluvia, nieve, niebla o sol), el **Widget de Escritorio cambia el color y gradiente de su fondo EXCLUSIVAMENTE según la hora del día** (o parámetros astronómicos reales de amanecer/atardecer proporcionados por Open-Meteo):
+El fondo del widget adapta automáticamente su textura visual y colorimetría según la hora solar:
 
 | Franja Horaria | Intervalo Horario Estándar | Recurso Drawable XML | Gradiente / Color de Fondo | Optimización Visual |
 | :--- | :--- | :--- | :--- | :--- |
-| **🌅 Amanecer** | `06:00` a `08:30` | `widget_bg_sunrise.xml` | Gradiente Cálido Dorado (`#3D1A10` $\to$ `#170B08`) | Luz cálida matutina con acento en melocotón |
-| **☀️ Día / Mediodía** | `08:30` a `19:30` | `widget_bg_day.xml` | Gradiente Azul Pizarra (`#1E2738` $\to$ `#0B111D`) | Claridad diurna con tipografía de alto contraste |
-| **🌇 Atardecer** | `19:30` a `21:30` | `widget_bg_sunset.xml` | Gradiente Crepuscular Púrpura (`#3B1238` $\to$ `#120619`) | Tonos violetas crepusculares |
-| **🌙 Noche AMOLED** | `21:30` a `06:00` | `widget_bg_night.xml` | **Negro Puro `#000000`** | **Apagado total de píxeles OLED y ahorro energético extremo** |
+| **🌅 Amanecer** | `06:00` a `08:30` | `widget_bg_sunrise.xml` | Gradiente Cálido Dorado Radiante (`#C2410C` $\to$ `#7C2D12` $\to$ `#1E0E08`) con borde ámbar | Luz cálida matutina de alto contraste |
+| **☀️ Día / Pleno Sol** | `08:30` a `19:30` | `widget_bg_day.xml` | Gradiente Azul Cielo Intenso (`#1D4ED8` $\to$ `#1E3A8A` $\to$ `#0F172A`) con borde celeste | Claridad diurna y máxima nitidez |
+| **🌇 Atardecer** | `19:30` a `21:30` | `widget_bg_sunset.xml` | Gradiente Crepuscular Magenta/Violeta (`#86198F` $\to$ `#581C87` $\to$ `#1E0B2B`) con borde rosa | Tonos crepusculares violetas diferenciados |
+| **🌙 Noche AMOLED** | `21:30` a `06:00` | `widget_bg_night.xml` | **Negro Puro `#000000`** con borde estelar cian (`#4038BDF8`) | **Apagado total de píxeles OLED y ahorro energético** |
 
 ### Ciclo de Vida y Actualización con WorkManager
 
-- **`WeatherWidgetWorker`:** Tarea periódica en segundo plano programada con restricciones de batería (`BatteryNotLow`) y red conectada.
-- **`BootCompletedReceiver`:** Restaura inmediatamente el widget tras reiniciar el dispositivo utilizando la última caché válida de la base de datos o memoria, sin generar llamadas costosas de red.
+- **`WeatherUpdateWorker`:** Tarea periódica en segundo plano programada con restricciones de batería (`BatteryNotLow`) y conectividad.
+- **`BootCompletedReceiver`:** Restaura inmediatamente el widget tras reiniciar el dispositivo utilizando la última caché válida sin requerir peticiones de red.
 
 ---
 

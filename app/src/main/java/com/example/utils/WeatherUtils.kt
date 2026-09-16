@@ -34,6 +34,12 @@ data class WmoConfig(
 
 object WeatherUtils {
 
+    val defaultGradSunrise = listOf(
+        Color(0xFFC2410C),
+        Color(0xFFD97706),
+        Color(0xFFFDE047)
+    )
+
     private val defaultGradDay = listOf(
         Color(0xFF2563EB),
         Color(0xFF3B82F6),
@@ -265,21 +271,112 @@ object WeatherUtils {
         )
     )
 
-    fun isSunsetPeriod(sunsetStr: String?): Boolean {
-        if (sunsetStr.isNullOrBlank() || !sunsetStr.contains(":")) return false
+    fun parseTimeToMinutes(timeStr: String?): Int? {
+        if (timeStr.isNullOrBlank()) return null
         return try {
-            val parts = sunsetStr.trim().split(":")
-            val sunsetHour = parts[0].toIntOrNull() ?: return false
-            val sunsetMin = parts.getOrNull(1)?.toIntOrNull() ?: 0
-            val sunsetTotalMin = sunsetHour * 60 + sunsetMin
-
-            val cal = Calendar.getInstance()
-            val currentTotalMin = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-
-            // Sunset window: 45 minutes before to 45 minutes after sunset
-            kotlin.math.abs(currentTotalMin - sunsetTotalMin) <= 45
+            val clean = if (timeStr.contains("T")) timeStr.substringAfter("T") else timeStr
+            val parts = clean.trim().split(":")
+            val h = parts[0].toIntOrNull() ?: return null
+            val m = parts.getOrNull(1)?.substring(0, 2)?.toIntOrNull() ?: 0
+            h * 60 + m
         } catch (_: Exception) {
-            false
+            null
+        }
+    }
+
+    /**
+     * Determines whether it is daytime based on real astronomical sunrise/sunset times,
+     * API flag if available, or device local clock / simulated hour.
+     */
+    fun isDaytime(
+        sunriseIsoOrTime: String?,
+        sunsetIsoOrTime: String?,
+        apiIsDay: Int? = null,
+        simulatedHour: Int? = null,
+        simulatedMinute: Int? = null
+    ): Boolean {
+        val currentMinutes = if (simulatedHour != null) {
+            simulatedHour * 60 + (simulatedMinute ?: 0)
+        } else {
+            val cal = Calendar.getInstance()
+            cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        }
+        val sunriseMinutes = parseTimeToMinutes(sunriseIsoOrTime)
+        val sunsetMinutes = parseTimeToMinutes(sunsetIsoOrTime)
+
+        // 1. Primary: Exact astronomical window
+        if (sunriseMinutes != null && sunsetMinutes != null) {
+            return currentMinutes in sunriseMinutes until sunsetMinutes
+        }
+
+        // 2. Secondary: API explicit flag
+        if (apiIsDay != null && simulatedHour == null) {
+            return apiIsDay == 1
+        }
+
+        // 3. Fallback: Local standard daylight hours (07:00 to 20:30)
+        val currentHour = currentMinutes / 60
+        return currentHour in 7..20
+    }
+
+    /**
+     * Quick check for whether current local time is daytime.
+     */
+    fun isDaytimeNow(): Boolean {
+        val cal = Calendar.getInstance()
+        val currentHour = cal.get(Calendar.HOUR_OF_DAY)
+        return currentHour in 7..20
+    }
+
+    /**
+     * Rango de amanecer: entre sunrise y sunrise + 1.5 horas (90 minutos),
+     * o franja de 06:00 a 08:30 si no hay ephemeris.
+     */
+    fun isSunrisePeriod(
+        sunriseIsoOrTime: String?,
+        simulatedHour: Int? = null,
+        simulatedMinute: Int? = null
+    ): Boolean {
+        val currentMinutes = if (simulatedHour != null) {
+            simulatedHour * 60 + (simulatedMinute ?: 0)
+        } else {
+            val cal = Calendar.getInstance()
+            cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        }
+
+        val sunriseMinutes = parseTimeToMinutes(sunriseIsoOrTime)
+        return if (sunriseMinutes != null) {
+            // Entre sunrise (-15 min de clarear) y sunrise + 1.5 horas (90 min)
+            currentMinutes in (sunriseMinutes - 15)..(sunriseMinutes + 90)
+        } else {
+            // Franja por defecto de 06:00 (360) a 08:30 (510)
+            currentMinutes in 360..510
+        }
+    }
+
+    /**
+     * Rango de atardecer / ocaso: alrededor de sunset,
+     * o franja de 19:30 a 21:30 si no hay ephemeris.
+     */
+    fun isSunsetPeriod(
+        sunsetIsoOrTime: String?,
+        simulatedHour: Int? = null,
+        simulatedMinute: Int? = null
+    ): Boolean {
+        val currentMinutes = if (simulatedHour != null) {
+            simulatedHour * 60 + (simulatedMinute ?: 0)
+        } else {
+            val cal = Calendar.getInstance()
+            cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        }
+
+        val sunsetMinutes = parseTimeToMinutes(sunsetIsoOrTime)
+        return if (sunsetMinutes != null) {
+            // Sunset window: 45 min antes hasta 60 min después
+            currentMinutes in (sunsetMinutes - 45)..(sunsetMinutes + 60)
+        } else {
+            // Franja por defecto: 19:30 (1170) a 21:30 (1290)
+            currentMinutes in 1170..1290
         }
     }
 
@@ -287,12 +384,23 @@ object WeatherUtils {
         return wmoConfigs[code] ?: wmoConfigs[0]!!
     }
 
-    fun getGradient(code: Int, isDay: Boolean, isSunset: Boolean = false): List<Color> {
+    fun getGradient(
+        code: Int,
+        isDay: Boolean,
+        isSunset: Boolean = false,
+        isSunrise: Boolean = false
+    ): List<Color> {
+        val config = getWmoConfig(code)
+        if (!isDay) {
+            return config.gradNight
+        }
+        if (isSunrise && (code <= 2)) {
+            return defaultGradSunrise
+        }
         if (isSunset && (code <= 2)) {
             return defaultGradSunset
         }
-        val config = getWmoConfig(code)
-        return if (isDay) config.gradDay else config.gradNight
+        return config.gradDay
     }
 
     fun getSceneType(code: Int, isDay: Boolean): SceneType {

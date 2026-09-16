@@ -224,7 +224,9 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                         clothingRecommendation = clothingHeadline,
                         clothingSummary = clothingSummary,
                         clothingIcon = clothingIcon,
-                        sourceBadge = sourceBadge
+                        sourceBadge = sourceBadge,
+                        sunrise = finalCurrentWeather.sunrise,
+                        sunset = finalCurrentWeather.sunset
                     )
 
                     // Ensure background periodic worker is scheduled

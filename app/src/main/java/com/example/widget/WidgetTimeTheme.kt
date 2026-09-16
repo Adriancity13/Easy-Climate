@@ -61,58 +61,68 @@ data class WidgetThemeConfig(
     val secondaryTextColorInt: Int,
     val rainTextColorInt: Int,
     val badgeBgColorInt: Int,
+    val timeBadgeText: String,
+    val timeBadgeColorInt: Int,
     val hexColorDesc: String
 )
 
 object WidgetTimeTheme {
 
-    // Configuración para cada una de las 4 franjas horarias
+    // Configuración para cada una de las 4 franjas horarias con distinción y contraste máximo
     private val sunriseConfig = WidgetThemeConfig(
         timeSlot = WidgetTimeSlot.SUNRISE,
         backgroundDrawableRes = R.drawable.widget_bg_sunrise,
-        bgGradientColors = listOf(ComposeColor(0xFF3D1A10), ComposeColor(0xFF2B140D), ComposeColor(0xFF170B08)),
+        bgGradientColors = listOf(ComposeColor(0xFFC2410C), ComposeColor(0xFF7C2D12), ComposeColor(0xFF1E0E08)),
         isAmoledBlack = false,
         primaryTextColorInt = AndroidColor.parseColor("#FFFFFF"),
         secondaryTextColorInt = AndroidColor.parseColor("#FED7AA"), // Warm peach/gold
         rainTextColorInt = AndroidColor.parseColor("#38BDF8"),
-        badgeBgColorInt = AndroidColor.parseColor("#4D7C2D12"),
-        hexColorDesc = "Gradiente Cálido Dorado (#3D1A10 → #170B08)"
+        badgeBgColorInt = AndroidColor.parseColor("#66C2410C"),
+        timeBadgeText = "🌅 Amanecer",
+        timeBadgeColorInt = AndroidColor.parseColor("#FDBA74"),
+        hexColorDesc = "Amanecer Dorado Radiante (#C2410C → #7C2D12 → #1E0E08)"
     )
 
     private val dayConfig = WidgetThemeConfig(
         timeSlot = WidgetTimeSlot.DAY,
         backgroundDrawableRes = R.drawable.widget_bg_day,
-        bgGradientColors = listOf(ComposeColor(0xFF1E2738), ComposeColor(0xFF141D2C), ComposeColor(0xFF0B111D)),
+        bgGradientColors = listOf(ComposeColor(0xFF1D4ED8), ComposeColor(0xFF1E3A8A), ComposeColor(0xFF0F172A)),
         isAmoledBlack = false,
         primaryTextColorInt = AndroidColor.parseColor("#FFFFFF"),
-        secondaryTextColorInt = AndroidColor.parseColor("#CBD5E1"), // Crisp slate
+        secondaryTextColorInt = AndroidColor.parseColor("#E0F2FE"), // Bright sky-white
         rainTextColorInt = AndroidColor.parseColor("#38BDF8"),
-        badgeBgColorInt = AndroidColor.parseColor("#331E293B"),
-        hexColorDesc = "Gradiente Azul/Pizarra (#1E2738 → #0B111D)"
+        badgeBgColorInt = AndroidColor.parseColor("#661D4ED8"),
+        timeBadgeText = "☀️ Día",
+        timeBadgeColorInt = AndroidColor.parseColor("#93C5FD"),
+        hexColorDesc = "Día Azul Cielo Intenso (#1D4ED8 → #1E3A8A → #0F172A)"
     )
 
     private val sunsetConfig = WidgetThemeConfig(
         timeSlot = WidgetTimeSlot.SUNSET,
         backgroundDrawableRes = R.drawable.widget_bg_sunset,
-        bgGradientColors = listOf(ComposeColor(0xFF3B1238), ComposeColor(0xFF260C2C), ComposeColor(0xFF120619)),
+        bgGradientColors = listOf(ComposeColor(0xFF86198F), ComposeColor(0xFF581C87), ComposeColor(0xFF1E0B2B)),
         isAmoledBlack = false,
         primaryTextColorInt = AndroidColor.parseColor("#FFFFFF"),
         secondaryTextColorInt = AndroidColor.parseColor("#FBCFE8"), // Twilight pink/lavender
         rainTextColorInt = AndroidColor.parseColor("#38BDF8"),
-        badgeBgColorInt = AndroidColor.parseColor("#4D701A75"),
-        hexColorDesc = "Gradiente Crepuscular Púrpura (#3B1238 → #120619)"
+        badgeBgColorInt = AndroidColor.parseColor("#6686198F"),
+        timeBadgeText = "🌇 Ocaso",
+        timeBadgeColorInt = AndroidColor.parseColor("#F472B6"),
+        hexColorDesc = "Atardecer Magenta Violeta (#86198F → #581C87 → #1E0B2B)"
     )
 
     private val nightConfig = WidgetThemeConfig(
         timeSlot = WidgetTimeSlot.NIGHT,
         backgroundDrawableRes = R.drawable.widget_bg_night,
-        bgGradientColors = listOf(ComposeColor(0xFF000000), ComposeColor(0xFF000000), ComposeColor(0xFF000000)),
+        bgGradientColors = listOf(ComposeColor(0xFF000000), ComposeColor(0xFF030712), ComposeColor(0xFF000000)),
         isAmoledBlack = true,
         primaryTextColorInt = AndroidColor.parseColor("#FFFFFF"),
         secondaryTextColorInt = AndroidColor.parseColor("#E2E8F0"), // High contrast white-silver
         rainTextColorInt = AndroidColor.parseColor("#38BDF8"),
-        badgeBgColorInt = AndroidColor.parseColor("#33FFFFFF"),
-        hexColorDesc = "Negro Puro AMOLED #000000 (Píxeles OLED Apagados)"
+        badgeBgColorInt = AndroidColor.parseColor("#4038BDF8"),
+        timeBadgeText = "🌙 Noche",
+        timeBadgeColorInt = AndroidColor.parseColor("#38BDF8"),
+        hexColorDesc = "Noche Negro Puro AMOLED #000000 (Píxeles OLED Apagados)"
     )
 
     /**
@@ -187,17 +197,14 @@ object WidgetTimeTheme {
      * Aplica los colores de fondo y tipografía adaptados al RemoteViews del Widget.
      */
     fun applyThemeToRemoteViews(views: RemoteViews, config: WidgetThemeConfig) {
-        // Fondo dinámico según la hora
+        // Fondo dinámico según la hora (incluye AMOLED Black #000000 en noche)
         views.setInt(R.id.widget_root, "setBackgroundResource", config.backgroundDrawableRes)
 
-        // Adaptación de colores de texto para contraste óptimo
+        // Adaptación de colores de texto para contraste óptimo en la diagramación de 3 filas
         views.setTextColor(R.id.widget_location, config.primaryTextColorInt)
         views.setTextColor(R.id.widget_high_low, config.secondaryTextColorInt)
         views.setTextColor(R.id.widget_temperature, config.primaryTextColorInt)
-        views.setTextColor(R.id.widget_description, config.secondaryTextColorInt)
         views.setTextColor(R.id.widget_feels_like, config.secondaryTextColorInt)
-        views.setTextColor(R.id.widget_rain_prob, config.rainTextColorInt)
-        views.setTextColor(R.id.widget_wind, config.secondaryTextColorInt)
     }
 
     private fun parseTimeToMinutes(timeStr: String?): Int? {

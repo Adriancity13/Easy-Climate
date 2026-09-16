@@ -5,10 +5,10 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_glass_background"
     android:orientation="vertical"
-    android:padding="14dp"
+    android:padding="16dp"
     android:gravity="center_vertical">
 
-    <!-- Fila 1 (Superior): Ubicación y Térmica Max / Min -->
+    <!-- Fila 1 (Superior): Nombre de la ubicación/municipio + Máxima y Mínima -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -16,8 +16,9 @@
         android:gravity="center_vertical">
 
         <ImageView
-            android:layout_width="13dp"
-            android:layout_height="13dp"
+            android:id="@+id/widget_location_icon"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
             android:src="@drawable/ic_widget_location"
             android:contentDescription="@null" />
 
@@ -26,11 +27,11 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="6dp"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="8dp"
             android:text="Madrid"
             android:textColor="#FFFFFF"
-            android:textSize="13.5sp"
+            android:textSize="14sp"
             android:fontFamily="sans-serif-medium"
             android:maxLines="1"
             android:ellipsize="end" />
@@ -39,110 +40,54 @@
             android:id="@+id/widget_high_low"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="↑24° ↓17°"
-            android:textColor="#CBD5E1"
-            android:textSize="12sp"
+            android:text="↑24°  ↓17°"
+            android:textColor="#E2E8F0"
+            android:textSize="12.5sp"
             android:textStyle="bold"
             android:fontFamily="sans-serif-medium" />
     </LinearLayout>
 
-    <!-- Fila 2 (Central): Tiempo Principal (Icono Grande + Temp + Descripción Completa) -->
+    <!-- Fila 2 (Central): Icono meteorológico grande a la izquierda y Temperatura Actual destacada a la derecha -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="6dp"
-        android:layout_marginBottom="6dp"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp">
 
         <ImageView
             android:id="@+id/widget_icon"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:src="@drawable/ic_widget_sun"
             android:contentDescription="@null" />
 
-        <LinearLayout
-            android:layout_width="0dp"
+        <TextView
+            android:id="@+id/widget_temperature"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:orientation="vertical"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/widget_temperature"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="21°"
-                android:textColor="#FFFFFF"
-                android:textSize="34sp"
-                android:textStyle="bold"
-                android:fontFamily="sans-serif-medium"
-                android:includeFontPadding="false" />
-
-            <TextView
-                android:id="@+id/widget_description"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="Intervalos nubosos"
-                android:textColor="#E2E8F0"
-                android:textSize="12sp"
-                android:fontFamily="sans-serif"
-                android:maxLines="1"
-                android:ellipsize="end" />
-        </LinearLayout>
+            android:layout_marginStart="14dp"
+            android:text="21°"
+            android:textColor="#FFFFFF"
+            android:textSize="38sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false" />
     </LinearLayout>
 
-    <!-- Fila 3 (Inferior): Métricas Secundarias Claras -->
-    <LinearLayout
-        android:id="@+id/widget_stats_container"
+    <!-- Fila 3 (Inferior): Sensación Térmica completa y legible en una sola línea -->
+    <TextView
+        android:id="@+id/widget_feels_like"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <!-- Sensación térmica completa -->
-        <TextView
-            android:id="@+id/widget_feels_like"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Sens. 20°"
-            android:textColor="#E2E8F0"
-            android:textSize="11.5sp"
-            android:fontFamily="sans-serif-medium"
-            android:gravity="start|center_vertical"
-            android:maxLines="1" />
-
-        <!-- Humedad / Lluvia con icono -->
-        <TextView
-            android:id="@+id/widget_rain_prob"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="0.9"
-            android:text="💧 14%"
-            android:textColor="#38BDF8"
-            android:textSize="11.5sp"
-            android:fontFamily="sans-serif-medium"
-            android:gravity="center"
-            android:maxLines="1" />
-
-        <!-- Viento con icono -->
-        <TextView
-            android:id="@+id/widget_wind"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1.1"
-            android:text="💨 21 km/h"
-            android:textColor="#E2E8F0"
-            android:textSize="11.5sp"
-            android:fontFamily="sans-serif-medium"
-            android:gravity="end|center_vertical"
-            android:maxLines="1" />
-
-    </LinearLayout>
+        android:text="Sensación 20°"
+        android:textColor="#CBD5E1"
+        android:textSize="13sp"
+        android:fontFamily="sans-serif-medium"
+        android:maxLines="1"
+        android:ellipsize="end" />
 
 </LinearLayout>
+
