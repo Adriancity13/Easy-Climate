@@ -251,7 +251,7 @@ class WeatherRepository {
         } else {
             async(Dispatchers.IO) {
                 try {
-                    withTimeoutOrNull(2500L) {
+                    withTimeoutOrNull(3500L) {
                         try {
                             GroqBioclimaticAdvisor.getBioclimaticRecommendation(
                                 cityName = cityName,

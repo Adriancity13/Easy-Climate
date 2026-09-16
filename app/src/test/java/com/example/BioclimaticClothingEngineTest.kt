@@ -114,4 +114,33 @@ class BioclimaticClothingEngineTest {
         assertEquals(ThermalLevel.FRIO_INTENSO, ThermalLevel.fromTemp(5.0))
         assertEquals(ThermalLevel.GELIDO, ThermalLevel.fromTemp(0.0))
     }
+
+    @Test
+    fun testMergeWithGroqResult() {
+        val hourly = createHourlyList(minTemp = 20, maxTemp = 30)
+        val localRec = BioclimaticClothingEngine.calculate(
+            currentTemp = 25.0,
+            currentHumidity = 40,
+            currentWindSpeed = 8.0,
+            currentApparentTemp = 25.0,
+            hourlyItems = hourly,
+            sunsetTime = "21:00"
+        )
+
+        val groqResult = com.example.engine.GroqBioclimaticResult(
+            titular = "Camiseta sintética ligera y cortavientos en mochila para la noche.",
+            calzado = "Zapatillas transpirables",
+            franjas = com.example.engine.GroqFranjas(
+                salida = "Manga corta",
+                mediodia = "Ropa ligera",
+                tarde = "Cortavientos fino",
+                regreso = "Chaqueta ligera"
+            )
+        )
+
+        val merged = localRec.mergeWithGroq(groqResult)
+        assertEquals(com.example.engine.RecommendationSource.AI_BIOCLIMATIC, merged.source)
+        assertEquals(groqResult.titular, merged.headline)
+        assertEquals(groqResult.calzado, merged.footwearPill.reason)
+    }
 }

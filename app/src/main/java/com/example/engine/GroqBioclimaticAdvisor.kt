@@ -37,10 +37,10 @@ object GroqBioclimaticAdvisor {
     private const val GROQ_FALLBACK_MODEL = "qwen/qwen3.8-27b"
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(2500, TimeUnit.MILLISECONDS)
-        .readTimeout(2500, TimeUnit.MILLISECONDS)
-        .writeTimeout(2500, TimeUnit.MILLISECONDS)
-        .callTimeout(2500, TimeUnit.MILLISECONDS)
+        .connectTimeout(3500, TimeUnit.MILLISECONDS)
+        .readTimeout(3500, TimeUnit.MILLISECONDS)
+        .writeTimeout(3500, TimeUnit.MILLISECONDS)
+        .callTimeout(3500, TimeUnit.MILLISECONDS)
         .build()
 
     private const val SYSTEM_PROMPT = """Eres el asesor bioclimático experto para Easy-Climate.
@@ -82,7 +82,8 @@ ESTRUCTURA DEL TITULAR (OBLIGATORIO: DIRECTO Y CONCISO, 20-30 PALABRAS):
 - Debe explicar con precisión QUÉ VESTIR y POR QUÉ con nexo causa-efecto natural.
 
 SALIDA EN JSON ESTRICTO:
-Devuelve EXCLUSIVAMENTE un objeto JSON válido con la siguiente estructura (sin etiquetas markdown ```json, sin explicaciones adicionales):
+Devuelve EXCLUSIVAMENTE un objeto JSON válido.
+IMPORTANTE: Todos los valores deben ser cadenas de texto cerradas con comillas dobles. No incluyas llaves dentro de los textos.
 {
   "titular": "Consejo explicativo fluido y natural de entre 20 y 30 palabras explicando qué vestir y por qué con motivo fisiológico.",
   "calzado": "Calzado o complemento en 3-4 palabras.",
@@ -93,6 +94,94 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con la siguiente estructura (sin 
     "regreso": "Prenda o consejo fluido para la noche"
   }
 }"""
+
+    private fun createBioclimaticSchema(): JSONObject {
+        val properties = JSONObject().apply {
+            put("titular", JSONObject().apply { put("type", "string") })
+            put("calzado", JSONObject().apply { put("type", "string") })
+            put("franjas", JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("salida", JSONObject().apply { put("type", "string") })
+                    put("mediodia", JSONObject().apply { put("type", "string") })
+                    put("tarde", JSONObject().apply { put("type", "string") })
+                    put("regreso", JSONObject().apply { put("type", "string") })
+                })
+                put("required", JSONArray().apply {
+                    put("salida")
+                    put("mediodia")
+                    put("tarde")
+                    put("regreso")
+                })
+                put("additionalProperties", false)
+            })
+        }
+
+        val schemaObj = JSONObject().apply {
+            put("type", "object")
+            put("properties", properties)
+            put("required", JSONArray().apply {
+                put("titular")
+                put("calzado")
+                put("franjas")
+            })
+            put("additionalProperties", false)
+        }
+
+        return JSONObject().apply {
+            put("type", "json_schema")
+            put("json_schema", JSONObject().apply {
+                put("name", "bioclimatic_recommendation")
+                put("strict", true)
+                put("schema", schemaObj)
+            })
+        }
+    }
+
+    private fun tryRecoverFailedGeneration(failedGen: String): String? {
+        try {
+            val obj = JSONObject(failedGen)
+            if (obj.has("titular")) {
+                return JSONObject().apply {
+                    put("choices", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("message", JSONObject().apply {
+                                put("content", failedGen)
+                            })
+                        })
+                    })
+                }.toString()
+            }
+        } catch (_: Exception) {}
+
+        val titular = Regex("\"titular\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: return null
+        val calzado = Regex("\"calzado\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+        val salida = Regex("\"salida\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+        val mediodia = Regex("\"mediodia\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+        val tarde = Regex("\"tarde\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+        val regreso = Regex("\"regreso\"\\s*:\\s*\"([^\"]+?)(?:\\}\\}\"|\\}\"|\"|$)").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+
+        val sanitizedContent = JSONObject().apply {
+            put("titular", titular.trim())
+            put("calzado", calzado.trim())
+            put("franjas", JSONObject().apply {
+                put("salida", salida.trim())
+                put("mediodia", mediodia.trim())
+                put("tarde", tarde.trim())
+                put("regreso", regreso.trim())
+            })
+        }.toString()
+
+        return JSONObject().apply {
+            put("choices", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("message", JSONObject().apply {
+                        put("content", sanitizedContent)
+                    })
+                })
+            })
+        }.toString()
+    }
 
     private fun executeGroqRequest(model: String, userPrompt: String): String {
         val requestJson = JSONObject().apply {
@@ -107,13 +196,11 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con la siguiente estructura (sin 
                     put("content", userPrompt)
                 })
             })
-            put("temperature", 0.2)
+            put("temperature", 0.1)
             if (model.contains("oss")) {
                 put("reasoning_effort", "low")
             }
-            put("response_format", JSONObject().apply {
-                put("type", "json_object")
-            })
+            put("response_format", createBioclimaticSchema())
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
@@ -122,6 +209,7 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con la siguiente estructura (sin 
             .url(GROQ_ENDPOINT)
             .addHeader("Content-Type", "application/json")
             .addHeader("Authorization", "Bearer " + GROQ_API_KEY)
+            .addHeader("User-Agent", "EasyClimate/1.0")
             .post(body)
             .build()
 
@@ -132,6 +220,20 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con la siguiente estructura (sin 
             val responseStr = response.body?.string() ?: ""
             val latency = System.currentTimeMillis() - t0
             if (!response.isSuccessful) {
+                // Recuperación resiliente si Groq rechaza por json_validate_failed pero adjunta failed_generation
+                try {
+                    val errJson = JSONObject(responseStr).optJSONObject("error")
+                    val failedGen = errJson?.optString("failed_generation")
+                    if (!failedGen.isNullOrBlank()) {
+                        android.util.Log.w("GroqAPI", "Detectado failed_generation en error HTTP 400. Recuperando contenido...")
+                        val recoveredResult = tryRecoverFailedGeneration(failedGen)
+                        if (recoveredResult != null) {
+                            com.example.utils.DevToolsTelemetry.recordGroqSuccess(latency, 0.0, failedGen.length / 4, recoveredResult)
+                            return recoveredResult
+                        }
+                    }
+                } catch (_: Exception) {}
+
                 val errorMsg = "HTTP ${response.code} ${response.message}: $responseStr"
                 android.util.Log.e("GroqAPI", "Error HTTP devuelto por Groq ($model): $errorMsg")
                 com.example.utils.DevToolsTelemetry.recordGroqError(errorMsg)
