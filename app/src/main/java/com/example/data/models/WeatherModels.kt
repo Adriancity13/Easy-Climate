@@ -237,6 +237,73 @@ data class AirQualityUI(
         get() = "Calidad del aire: ${category.label}"
 }
 
+// User Personalization Models
+enum class ThermalSensitivity(val label: String, val shortLabel: String, val tempOffset: Double) {
+    CALUROSO("Tiendo a tener calor", "Caluroso/a", +2.0),
+    NORMAL("Normal", "Normal", 0.0),
+    FRIOLERO("Tiendo a tener frío", "Friolero/a", -2.0)
+}
+
+enum class OutingDuration(val label: String, val shortLabel: String, val hours: Int) {
+    SHORT("Salida corta (1 h)", "1 h", 1),
+    MEDIUM("Media jornada (2-4 h)", "2-4 h", 4),
+    ALL_DAY("Todo el día / Noche", "Todo el día", 12)
+}
+
+enum class ActivityType(val label: String, val shortLabel: String) {
+    WALKING("A pie", "A pie"),
+    CYCLING("Bicicleta / Patinete", "Bicicleta"),
+    TRANSIT("Transporte / Coche", "Transporte")
+}
+
+data class UserPreferences(
+    val sensitivity: ThermalSensitivity = ThermalSensitivity.NORMAL,
+    val duration: OutingDuration = OutingDuration.MEDIUM,
+    val activity: ActivityType = ActivityType.WALKING,
+    val departureHour: Int? = null,
+    val returnHour: Int? = null
+) {
+    val isScheduledWindow: Boolean
+        get() = departureHour != null && returnHour != null
+}
+
+enum class RainRiskLevel(
+    val label: String,
+    val advice: String,
+    val icon: String
+) {
+    NONE(
+        label = "Sin riesgo de lluvia",
+        advice = "No parece necesario llevar paraguas.",
+        icon = "☀️"
+    ),
+    VERY_LOW(
+        label = "Riesgo de lluvia muy bajo",
+        advice = "Probabilidad mínima; paraguas innecesario.",
+        icon = "🌦️"
+    ),
+    LOW(
+        label = "Baja probabilidad de lluvia",
+        advice = "Lluvia poco probable; prescindible para salidas normales.",
+        icon = "🌦️"
+    ),
+    MODERATE(
+        label = "Posibilidad de lluvia",
+        advice = "Posible lluvia; considera llevar paraguas o chubasquero ligero.",
+        icon = "🌧️"
+    ),
+    HIGH(
+        label = "Lluvia probable",
+        advice = "Lluvia prevista; lleva paraguas o impermeable.",
+        icon = "☂️"
+    ),
+    ACTIVE(
+        label = "Lloviendo actualmente",
+        advice = "Precipitación activa; paraguas o impermeable necesario.",
+        icon = "🌧️"
+    )
+}
+
 // UI State Models
 data class AdviceModifier(
     val icon: String,
@@ -286,7 +353,8 @@ data class DailyItem(
     val precipitationSum: Double? = null,
     val clothingIcon: String = "👕",
     val technicalSummary: String = "",
-    val bioclimaticAlert: String? = null
+    val bioclimaticAlert: String? = null,
+    val trendNote: String? = null
 )
 
 data class CurrentWeatherUI(
@@ -304,8 +372,19 @@ data class CurrentWeatherUI(
     val daylightDuration: String = "",
     val advice: ClothingAdvice,
     val airQuality: AirQualityUI? = null,
-    val recommendation: com.example.engine.ClothingRecommendation? = null
-)
+    val recommendation: com.example.engine.ClothingRecommendation? = null,
+    val isFromCache: Boolean = false,
+    val lastUpdatedTime: String? = null,
+    val rainRisk: RainRiskLevel = RainRiskLevel.NONE,
+    val trendSummary: String? = null
+) {
+    val isNotableRain: Boolean
+        get() = rainProb >= 35 || rainRisk == RainRiskLevel.HIGH || rainRisk == RainRiskLevel.ACTIVE
+    val isNotableWind: Boolean
+        get() = windSpeed >= 20
+    val isNotableHumidity: Boolean
+        get() = humidity >= 75 || humidity <= 30
+}
 
 data class LocationCache(
     val latitude: Double,

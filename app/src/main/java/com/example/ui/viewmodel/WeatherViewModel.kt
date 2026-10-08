@@ -42,7 +42,9 @@ sealed interface WeatherUIState {
         val dailyForecast: List<DailyItem>,
         val weatherCode: Int,
         val isDay: Boolean,
-        val formattedDate: String
+        val formattedDate: String,
+        val isFromCache: Boolean = false,
+        val lastUpdatedText: String? = null
     ) : WeatherUIState
     data class PermissionDenied(val reason: String = "No pudimos acceder a tu ubicación") : WeatherUIState
     data class Error(val message: String) : WeatherUIState
@@ -50,11 +52,14 @@ sealed interface WeatherUIState {
 
 class WeatherViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = WeatherRepository()
+    private val repository = WeatherRepository(application)
     private val prefs = application.getSharedPreferences("weather_app_prefs", Context.MODE_PRIVATE)
 
     private val _uiState = MutableStateFlow<WeatherUIState>(WeatherUIState.Loading)
     val uiState: StateFlow<WeatherUIState> = _uiState.asStateFlow()
+
+    private val _userPreferences = MutableStateFlow(loadUserPreferences())
+    val userPreferences: StateFlow<com.example.data.models.UserPreferences> = _userPreferences.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -151,13 +156,15 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                         hourlyItems = forecast.first,
                         dailyMaxUv = todayForecast?.uvIndexMax,
                         dailyPrecipSum = todayForecast?.precipitationSum,
-                        sunsetTime = currentWeather.sunset
+                        sunsetTime = currentWeather.sunset,
+                        preferences = _userPreferences.value
                     )
                 }
 
                 val finalCurrentWeather = currentWeather.copy(
                     recommendation = bioclimaticRecommendation,
-                    advice = bioclimaticRecommendation.toClothingAdvice()
+                    advice = bioclimaticRecommendation.toClothingAdvice(),
+                    rainRisk = bioclimaticRecommendation.rainRisk
                 )
 
                 prefs.edit()
@@ -185,7 +192,9 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                     dailyForecast = forecast.second,
                     weatherCode = finalCurrentWeather.weatherCode,
                     isDay = finalCurrentWeather.isDay,
-                    formattedDate = WeatherUtils.getFormattedCurrentDate()
+                    formattedDate = WeatherUtils.getFormattedCurrentDate(),
+                    isFromCache = finalCurrentWeather.isFromCache,
+                    lastUpdatedText = finalCurrentWeather.lastUpdatedTime
                 )
 
                 // Sync with Home Screen Widget instantly
@@ -506,5 +515,111 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
     fun toggleSimulatedOffline(enable: Boolean) {
         DevToolsTelemetry.setSimulatedOffline(enable)
+    }
+
+    private fun loadUserPreferences(): com.example.data.models.UserPreferences {
+        val sensStr = prefs.getString("pref_sensitivity", com.example.data.models.ThermalSensitivity.NORMAL.name)
+        val durStr = prefs.getString("pref_duration", com.example.data.models.OutingDuration.MEDIUM.name)
+        val actStr = prefs.getString("pref_activity", com.example.data.models.ActivityType.WALKING.name)
+
+        val sensitivity = try {
+            com.example.data.models.ThermalSensitivity.valueOf(sensStr ?: com.example.data.models.ThermalSensitivity.NORMAL.name)
+        } catch (_: Exception) {
+            com.example.data.models.ThermalSensitivity.NORMAL
+        }
+
+        val duration = try {
+            com.example.data.models.OutingDuration.valueOf(durStr ?: com.example.data.models.OutingDuration.MEDIUM.name)
+        } catch (_: Exception) {
+            com.example.data.models.OutingDuration.MEDIUM
+        }
+
+        val activity = try {
+            com.example.data.models.ActivityType.valueOf(actStr ?: com.example.data.models.ActivityType.WALKING.name)
+        } catch (_: Exception) {
+            com.example.data.models.ActivityType.WALKING
+        }
+
+        val dep = if (prefs.contains("pref_departure_hour")) prefs.getInt("pref_departure_hour", -1).takeIf { it in 0..23 } else null
+        val ret = if (prefs.contains("pref_return_hour")) prefs.getInt("pref_return_hour", -1).takeIf { it in 0..23 } else null
+
+        return com.example.data.models.UserPreferences(
+            sensitivity = sensitivity,
+            duration = duration,
+            activity = activity,
+            departureHour = dep,
+            returnHour = ret
+        )
+    }
+
+    fun setScheduledWindow(departureHour: Int?, returnHour: Int?) {
+        val updated = _userPreferences.value.copy(
+            departureHour = departureHour,
+            returnHour = returnHour
+        )
+        _userPreferences.value = updated
+        prefs.edit()
+            .apply {
+                if (departureHour != null) putInt("pref_departure_hour", departureHour) else remove("pref_departure_hour")
+                if (returnHour != null) putInt("pref_return_hour", returnHour) else remove("pref_return_hour")
+            }
+            .apply()
+        recalculateCurrentWeatherWithPreferences()
+    }
+
+    fun clearScheduledWindow() {
+        setScheduledWindow(null, null)
+    }
+
+    fun setOutingDuration(duration: com.example.data.models.OutingDuration) {
+        val updated = _userPreferences.value.copy(duration = duration)
+        _userPreferences.value = updated
+        prefs.edit().putString("pref_duration", duration.name).apply()
+        recalculateCurrentWeatherWithPreferences()
+    }
+
+    fun setThermalSensitivity(sensitivity: com.example.data.models.ThermalSensitivity) {
+        val updated = _userPreferences.value.copy(sensitivity = sensitivity)
+        _userPreferences.value = updated
+        prefs.edit().putString("pref_sensitivity", sensitivity.name).apply()
+        recalculateCurrentWeatherWithPreferences()
+    }
+
+    fun setActivityType(activity: com.example.data.models.ActivityType) {
+        val updated = _userPreferences.value.copy(activity = activity)
+        _userPreferences.value = updated
+        prefs.edit().putString("pref_activity", activity.name).apply()
+        recalculateCurrentWeatherWithPreferences()
+    }
+
+    private fun recalculateCurrentWeatherWithPreferences() {
+        val currentState = _uiState.value
+        if (currentState is WeatherUIState.Success) {
+            val cw = currentState.currentWeather
+            val todayForecast = currentState.dailyForecast.firstOrNull()
+            val updatedRec = BioclimaticClothingEngine.calculate(
+                currentTemp = cw.temp.toDouble(),
+                currentHumidity = cw.humidity,
+                currentWindSpeed = cw.windSpeed.toDouble(),
+                currentWindGusts = currentState.hourlyForecast.firstOrNull()?.windGusts ?: (cw.windSpeed.toDouble() * 1.35),
+                currentApparentTemp = cw.feelsLike,
+                currentRainProb = cw.rainProb,
+                currentPrecipitation = currentState.hourlyForecast.firstOrNull()?.precipitation ?: 0.0,
+                currentUvIndex = todayForecast?.uvIndexMax,
+                currentCloudCover = currentState.hourlyForecast.firstOrNull()?.cloudCover,
+                isDay = cw.isDay,
+                hourlyItems = currentState.hourlyForecast,
+                dailyMaxUv = todayForecast?.uvIndexMax,
+                dailyPrecipSum = todayForecast?.precipitationSum,
+                sunsetTime = cw.sunset,
+                preferences = _userPreferences.value
+            )
+            val updatedCw = cw.copy(
+                recommendation = updatedRec,
+                advice = updatedRec.toClothingAdvice(),
+                rainRisk = updatedRec.rainRisk
+            )
+            _uiState.value = currentState.copy(currentWeather = updatedCw)
+        }
     }
 }

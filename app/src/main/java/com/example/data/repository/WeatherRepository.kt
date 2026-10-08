@@ -26,7 +26,11 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-class WeatherRepository {
+class WeatherRepository(private val context: android.content.Context? = null) {
+
+    private val prefs by lazy {
+        context?.getSharedPreferences("weather_app_prefs", android.content.Context.MODE_PRIVATE)
+    }
 
     suspend fun fetchWeather(
         latitude: Double,
@@ -34,8 +38,50 @@ class WeatherRepository {
         knownCityName: String? = null,
         skipAi: Boolean = false
     ): Triple<String, CurrentWeatherUI, Pair<List<HourlyItem>, List<DailyItem>>> = withContext(Dispatchers.IO) {
-        if (com.example.utils.DevToolsTelemetry.cacheMetrics.value.isSimulatedOffline) {
-            throw java.io.IOException("Modo Offline Simulado: Conexión bloqueada por DevTools.")
+        val isSimulatedOffline = com.example.utils.DevToolsTelemetry.cacheMetrics.value.isSimulatedOffline
+
+        // Helper to load from cache
+        suspend fun loadCachedWeather(errorReason: String): Triple<String, CurrentWeatherUI, Pair<List<HourlyItem>, List<DailyItem>>>? {
+            val cachedJson = prefs?.getString("cached_weather_json", null)
+            if (!cachedJson.isNullOrBlank()) {
+                try {
+                    val adapter = ApiClient.moshi.adapter(OpenMeteoWeatherResponse::class.java)
+                    val cachedResponse = adapter.fromJson(cachedJson)
+                    if (cachedResponse != null) {
+                        val cachedCity = prefs?.getString("cached_weather_city", null) ?: knownCityName ?: "Ubicación guardada"
+                        val cachedTimeMs = prefs?.getLong("cached_weather_time", 0L) ?: 0L
+                        val timeFormatted = if (cachedTimeMs > 0) {
+                            SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(cachedTimeMs))
+                        } else null
+
+                        val hourlyAndDaily = processForecast(cachedResponse)
+                        val trendSummary = com.example.engine.BioclimaticClothingEngine.calculateTrendSummary(hourlyAndDaily.second)
+                        val currentWeatherUI = processCurrentWeather(
+                            cityName = cachedCity,
+                            response = cachedResponse,
+                            hourlyItems = hourlyAndDaily.first,
+                            airQualityUI = null,
+                            skipAi = true,
+                            microclimateContext = com.example.engine.MicroclimateContext()
+                        ).copy(
+                            isFromCache = true,
+                            lastUpdatedTime = timeFormatted,
+                            trendSummary = trendSummary
+                        )
+                        Log.i("WeatherRepo", "Recuperados datos de caché con éxito debido a: $errorReason")
+                        return Triple(cachedCity, currentWeatherUI, hourlyAndDaily)
+                    }
+                } catch (e: Exception) {
+                    Log.w("WeatherRepo", "Error al deserializar caché: ${e.message}")
+                }
+            }
+            return null
+        }
+
+        if (isSimulatedOffline) {
+            val cached = loadCachedWeather("Modo Offline Simulado")
+            if (cached != null) return@withContext cached
+            throw java.io.IOException("Modo Offline Simulado: Conexión bloqueada por DevTools y sin datos en caché.")
         }
 
         val cityNameDeferred = async {
@@ -48,10 +94,15 @@ class WeatherRepository {
 
         val t0 = System.currentTimeMillis()
         val forecastDeferred = async {
-            val res = ApiClient.openMeteoApi.getForecast(latitude, longitude)
-            val latency = System.currentTimeMillis() - t0
-            com.example.utils.DevToolsTelemetry.recordOpenMeteoLatency(latency)
-            res
+            try {
+                val res = ApiClient.openMeteoApi.getForecast(latitude, longitude)
+                val latency = System.currentTimeMillis() - t0
+                com.example.utils.DevToolsTelemetry.recordOpenMeteoLatency(latency)
+                res
+            } catch (e: Exception) {
+                Log.w("WeatherRepo", "Fallo de conexión en Open-Meteo API: ${e.message}")
+                null
+            }
         }
 
         val airQualityDeferred = async {
@@ -74,13 +125,31 @@ class WeatherRepository {
             }
         }
 
-        val cityName = cityNameDeferred.await()
         val response = forecastDeferred.await()
+        if (response == null) {
+            // Intentar recuperar de caché local de forma transparente
+            val cached = loadCachedWeather("Fallo de red en Open-Meteo")
+            if (cached != null) return@withContext cached
+            throw java.io.IOException("No se pudo obtener el tiempo y no hay datos previos disponibles.")
+        }
+
+        val cityName = cityNameDeferred.await()
         val aqResponse = airQualityDeferred.await()
         val microclimateContext = microclimateDeferred.await()
 
+        // Guardar en caché persistente para resiliencia offline futura
+        try {
+            val json = ApiClient.moshi.adapter(OpenMeteoWeatherResponse::class.java).toJson(response)
+            prefs?.edit()
+                ?.putString("cached_weather_json", json)
+                ?.putLong("cached_weather_time", System.currentTimeMillis())
+                ?.putString("cached_weather_city", cityName)
+                ?.apply()
+        } catch (_: Exception) { }
+
         val airQualityUI = processAirQuality(aqResponse)
         val hourlyAndDaily = processForecast(response)
+        val trendSummary = com.example.engine.BioclimaticClothingEngine.calculateTrendSummary(hourlyAndDaily.second)
         val currentWeatherUI = processCurrentWeather(
             cityName = cityName,
             response = response,
@@ -88,6 +157,8 @@ class WeatherRepository {
             airQualityUI = airQualityUI,
             skipAi = skipAi,
             microclimateContext = microclimateContext
+        ).copy(
+            trendSummary = trendSummary
         )
 
         Triple(cityName, currentWeatherUI, hourlyAndDaily)
@@ -312,7 +383,8 @@ class WeatherRepository {
             daylightDuration = daylightDuration,
             advice = finalAdvice,
             airQuality = airQualityUI,
-            recommendation = finalRecommendation
+            recommendation = finalRecommendation,
+            rainRisk = finalRecommendation.rainRisk
         )
     }
 
@@ -448,6 +520,16 @@ class WeatherRepository {
                     }
                 }
 
+                val todayMax = daily.temperature2mMax.getOrNull(0)?.roundToInt() ?: dMax
+                val diff = dMax - todayMax
+                val trendNote = if (i == 1) {
+                    when {
+                        diff <= -2 -> "📉 ~${kotlin.math.abs(diff)} °C menos que hoy"
+                        diff >= 2 -> "📈 ~${diff} °C más cálido"
+                        else -> null
+                    }
+                } else null
+
                 dailyItems.add(
                     DailyItem(
                         dateStr = dateStr,
@@ -466,7 +548,8 @@ class WeatherRepository {
                         advice = dayAdvice,
                         hourlyList = dayHourlyList,
                         uvIndexMax = daily.uvIndexMax?.getOrNull(i),
-                        precipitationSum = daily.precipitationSum?.getOrNull(i)
+                        precipitationSum = daily.precipitationSum?.getOrNull(i),
+                        trendNote = trendNote
                     )
                 )
             }

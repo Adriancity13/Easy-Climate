@@ -58,7 +58,10 @@ import java.util.Locale
 @Composable
 fun BioclimaticRecommendationCard(
     recommendation: ClothingRecommendation,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onDurationSelected: ((com.example.data.models.OutingDuration) -> Unit)? = null,
+    onSensitivitySelected: ((com.example.data.models.ThermalSensitivity) -> Unit)? = null,
+    onActivitySelected: ((com.example.data.models.ActivityType) -> Unit)? = null
 ) {
     var expandedDetails by remember { mutableStateOf(false) }
 
@@ -109,6 +112,18 @@ fun BioclimaticRecommendationCard(
                     )
                 }
 
+                // Quick Leaving Advice if present
+                recommendation.quickLeavingAdvice?.let { quick ->
+                    Text(
+                        text = quick,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
                 // Thermal Level tag
                 val levelColor = when (recommendation.thermalLevel) {
                     ThermalLevel.GELIDO -> Color(0xFF93C5FD)
@@ -137,6 +152,59 @@ fun BioclimaticRecommendationCard(
                         color = levelColor,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Duration selector chips (1 h, 2-4 h, Todo el día)
+            if (onDurationSelected != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    com.example.data.models.OutingDuration.values().forEach { dur ->
+                        val selected = dur == recommendation.userPreferences.duration
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (selected) Color.White.copy(alpha = 0.22f)
+                                    else Color.White.copy(alpha = 0.06f)
+                                )
+                                .clickable { onDurationSelected(dur) }
+                                .padding(vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = dur.shortLabel,
+                                color = if (selected) Color.White else Color.White.copy(alpha = 0.65f),
+                                fontSize = 11.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Rain Risk Banner if moderate or high
+            val rain = recommendation.rainRisk
+            if (rain != com.example.data.models.RainRiskLevel.NONE && rain != com.example.data.models.RainRiskLevel.VERY_LOW) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0x2238BDF8), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(text = rain.icon, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "${rain.label}: ${rain.advice}",
+                        color = Color(0xFFBAE6FD),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 15.sp
                     )
                 }
             }

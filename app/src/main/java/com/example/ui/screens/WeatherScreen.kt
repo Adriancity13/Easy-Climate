@@ -590,6 +590,9 @@ fun WeatherScreen(
                         hourlyList = state.hourlyForecast,
                         dailyList = state.dailyForecast,
                         onDevToolsClicked = { showPinDialog = true },
+                        onDurationSelected = { viewModel.setOutingDuration(it) },
+                        onSensitivitySelected = { viewModel.setThermalSensitivity(it) },
+                        onActivitySelected = { viewModel.setActivityType(it) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -625,6 +628,9 @@ private fun MainWeatherContent(
     hourlyList: List<com.example.data.models.HourlyItem>,
     dailyList: List<com.example.data.models.DailyItem>,
     onDevToolsClicked: () -> Unit,
+    onDurationSelected: (com.example.data.models.OutingDuration) -> Unit = {},
+    onSensitivitySelected: (com.example.data.models.ThermalSensitivity) -> Unit = {},
+    onActivitySelected: (com.example.data.models.ActivityType) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -647,6 +653,24 @@ private fun MainWeatherContent(
                     .padding(horizontal = 16.dp, vertical = 18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                if (weatherUI.isFromCache) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = "Modo sin conexión · Datos en caché${if (!weatherUI.lastUpdatedTime.isNullOrBlank()) " (${weatherUI.lastUpdatedTime})" else ""}",
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
                 // Condition Icon
                 WeatherConditionIcon(
                     iconType = weatherUI.iconType,
@@ -698,7 +722,10 @@ private fun MainWeatherContent(
                 if (weatherUI.recommendation != null) {
                     BioclimaticRecommendationCard(
                         recommendation = weatherUI.recommendation,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 4.dp),
+                        onDurationSelected = onDurationSelected,
+                        onSensitivitySelected = onSensitivitySelected,
+                        onActivitySelected = onActivitySelected
                     )
                 } else {
                     // Fallback flat card

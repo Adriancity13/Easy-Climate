@@ -154,12 +154,20 @@ IMPORTANTE: Todos los valores deben ser cadenas de texto cerradas con comillas d
             }
         } catch (_: Exception) {}
 
-        val titular = Regex("\"titular\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: return null
-        val calzado = Regex("\"calzado\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
-        val salida = Regex("\"salida\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
-        val mediodia = Regex("\"mediodia\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
-        val tarde = Regex("\"tarde\"\\s*:\\s*\"([^\"]+)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
-        val regreso = Regex("\"regreso\"\\s*:\\s*\"([^\"]+?)(?:\\}\\}\"|\\}\"|\"|$)").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+        val titular = Regex("\"titular\"\\s*:\\s*\"([^\"]+?)\"").find(failedGen)?.groupValues?.getOrNull(1)
+            ?: Regex("\"titular\"\\s*:\\s*\"([^,]+)").find(failedGen)?.groupValues?.getOrNull(1)
+            ?: return null
+
+        val calzado = Regex("\"calzado\"\\s*:\\s*\"([^\"]+?)\"").find(failedGen)?.groupValues?.getOrNull(1)
+            ?: Regex("\"calzado\"\\s*:\\s*\"([^,]+)").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+
+        val salida = Regex("\"salida\"\\s*:\\s*\"([^\"]+?)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+        val mediodia = Regex("\"mediodia\"\\s*:\\s*\"([^\"]+?)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+        val tarde = Regex("\"tarde\"\\s*:\\s*\"([^\"]+?)\"").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+
+        var regreso = Regex("\"regreso\"\\s*:\\s*\"([^\"]+?)\"").find(failedGen)?.groupValues?.getOrNull(1)
+            ?: Regex("\"regreso\"\\s*:\\s*\"([^}]+)").find(failedGen)?.groupValues?.getOrNull(1) ?: ""
+        regreso = regreso.trim().removeSuffix("}}").removeSuffix("}").removeSuffix("\"").trim()
 
         val sanitizedContent = JSONObject().apply {
             put("titular", titular.trim())
@@ -200,7 +208,9 @@ IMPORTANTE: Todos los valores deben ser cadenas de texto cerradas con comillas d
             if (model.contains("oss")) {
                 put("reasoning_effort", "low")
             }
-            put("response_format", createBioclimaticSchema())
+            put("response_format", JSONObject().apply {
+                put("type", "json_object")
+            })
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()

@@ -229,7 +229,10 @@ data class ClothingRecommendation(
     val complementAlerts: List<ComplementAlert>,
     val metrics: BioclimaticMetrics,
     val advancedMetrics: AdvancedBioclimaticMetrics,
-    val source: RecommendationSource = RecommendationSource.LOCAL_ENGINE
+    val source: RecommendationSource = RecommendationSource.LOCAL_ENGINE,
+    val rainRisk: com.example.data.models.RainRiskLevel = com.example.data.models.RainRiskLevel.NONE,
+    val userPreferences: com.example.data.models.UserPreferences = com.example.data.models.UserPreferences(),
+    val quickLeavingAdvice: String? = null
 ) {
     /**
      * Fusiona la recomendación determinista base con el asesoramiento enriquecido de la IA de Groq (Llama 3.1 8B Instant).
@@ -402,12 +405,12 @@ object BioclimaticClothingEngine {
     ): Double {
         if (!isDay) return 0.0
         val clearSkyFactor = ((100 - cloudCoverPercent.coerceIn(0, 100)) / 100.0)
-        if (clearSkyFactor < 0.20) return 0.0 // Cielo muy nublado o cubierto = sin ganancia solar directa
+        if (clearSkyFactor < 0.25 || uvIndex < 2.5) return 0.0 // Cielo muy nublado o baja radiación = sin ganancia térmica directa perceptible
 
         val uvClamped = uvIndex.coerceIn(1.0, 10.0)
-        // Escalado entre 3.0°C y 5.0°C proporcional al despeje del cielo e índice UV
-        val boost = 3.0 + (2.0 * (uvClamped / 10.0) * clearSkyFactor)
-        return (boost * clearSkyFactor).coerceIn(0.0, 5.0)
+        // Estimación prudente y moderada (máximo 2.0 °C a 2.5 °C al sol directo con cielo despejado)
+        val boost = 1.0 + (1.5 * (uvClamped / 10.0) * clearSkyFactor)
+        return (boost * clearSkyFactor).coerceIn(0.0, 2.5)
     }
 
     /**
@@ -460,9 +463,37 @@ object BioclimaticClothingEngine {
         dailyMaxUv: Double? = null,
         dailyPrecipSum: Double? = null,
         sunsetTime: String? = null,
-        indicators: BioclimaticPhysicalIndicators? = null
+        indicators: BioclimaticPhysicalIndicators? = null,
+        preferences: com.example.data.models.UserPreferences = com.example.data.models.UserPreferences()
     ): ClothingRecommendation {
-        val lookaheadHours = hourlyItems.take(18)
+        val isWindowActive = preferences.isScheduledWindow && preferences.departureHour != null && preferences.returnHour != null
+        val lookaheadHours = if (isWindowActive) {
+            val dep = preferences.departureHour!!
+            val ret = preferences.returnHour!!
+            val filtered = hourlyItems.filter { item ->
+                val hour = extractHour(item)
+                if (dep <= ret) {
+                    hour in dep..ret
+                } else {
+                    hour >= dep || hour <= ret
+                }
+            }
+            if (filtered.isNotEmpty()) filtered else hourlyItems.take(5)
+        } else {
+            when (preferences.duration) {
+                com.example.data.models.OutingDuration.SHORT -> hourlyItems.take(2)
+                com.example.data.models.OutingDuration.MEDIUM -> hourlyItems.take(5)
+                com.example.data.models.OutingDuration.ALL_DAY -> hourlyItems.take(18)
+            }
+        }
+
+        val windowStartTemp = if (isWindowActive && lookaheadHours.isNotEmpty()) {
+            lookaheadHours.first().temp.toDouble()
+        } else currentTemp
+
+        val windowReturnTemp = if (isWindowActive && lookaheadHours.isNotEmpty()) {
+            lookaheadHours.last().temp.toDouble()
+        } else (lookaheadHours.lastOrNull()?.temp?.toDouble() ?: currentTemp)
 
         // 1. Inercia Térmica Solar vs. Sombra
         val effectiveCloud = currentCloudCover ?: lookaheadHours.firstOrNull()?.cloudCover ?: 40
@@ -473,21 +504,23 @@ object BioclimaticClothingEngine {
             uvIndex = effectiveUv
         )
 
-        val effectiveGusts = currentWindGusts ?: (currentWindSpeed * 1.35)
+        val cyclingBoost = if (preferences.activity == com.example.data.models.ActivityType.CYCLING) 12.0 else 0.0
+        val effectiveWindSpeed = currentWindSpeed + cyclingBoost
+        val effectiveGusts = (currentWindGusts ?: (currentWindSpeed * 1.35)) + cyclingBoost
         val shadePerceived = calculateBioclimaticPerceivedTemp(
             tempC = currentTemp,
             relativeHumidity = currentHumidity.toDouble(),
-            windSpeedKmH = currentWindSpeed,
+            windSpeedKmH = effectiveWindSpeed,
             apparentTempApi = currentApparentTemp
         )
         val sunPerceived = shadePerceived + solarBoost
+        val personalizedPerceived = sunPerceived + preferences.sensitivity.tempOffset
 
         val isDampCold = currentHumidity > 75 && currentTemp <= 13.0
-        // Tasa de Ventilación por Humedad / Bochorno (Sweat Efficiency Factor)
         val isMuggyHeat = currentHumidity > 70 && currentTemp >= 24.0
 
-        // Variables máximas y mínimas del período 12-18h
-        val maxWind = maxOf(currentWindSpeed, lookaheadHours.maxOfOrNull { it.windSpeed ?: it.temp.toDouble() } ?: currentWindSpeed)
+        // Variables máximas y mínimas del período seleccionado
+        val maxWind = maxOf(effectiveWindSpeed, lookaheadHours.maxOfOrNull { it.windSpeed ?: 0.0 } ?: effectiveWindSpeed)
         val maxGusts = maxOf(effectiveGusts, lookaheadHours.maxOfOrNull { it.windGusts ?: 0.0 } ?: effectiveGusts)
         val maxRainProb = maxOf(currentRainProb, lookaheadHours.maxOfOrNull { it.rainProb } ?: currentRainProb)
         val maxPrecipMm = maxOf(currentPrecipitation ?: 0.0, lookaheadHours.maxOfOrNull { it.precipitation ?: 0.0 } ?: 0.0)
@@ -499,38 +532,52 @@ object BioclimaticClothingEngine {
         val thermalOscillation = maxTempPeriod - minTempPeriod
         val isHighOscillation = thermalOscillation >= 7.0
 
-        val thermalLevel = ThermalLevel.fromTemp(sunPerceived)
+        val thermalLevel = ThermalLevel.fromTemp(personalizedPerceived)
 
-        // 2. Factor de Aislamiento por Calzado
-        // Si acumulación de lluvia > 2 mm o probabilidad de precipitación > 60%
-        val hasRainOrPuddles = precipSum >= 2.0 || maxRainProb >= 60 || (currentPrecipitation ?: 0.0) >= 0.8 || maxPrecipMm >= 1.5
+        // 2. Lógica precisa y sin contradicciones de lluvia
+        val isCurrentlyRaining = (currentPrecipitation ?: 0.0) >= 0.2 || currentRainProb >= 75
+        val rainRisk = when {
+            isCurrentlyRaining -> com.example.data.models.RainRiskLevel.ACTIVE
+            maxRainProb > 65 || maxPrecipMm >= 1.5 -> com.example.data.models.RainRiskLevel.HIGH
+            maxRainProb in 36..65 || maxPrecipMm >= 0.5 -> com.example.data.models.RainRiskLevel.MODERATE
+            maxRainProb in 15..35 -> com.example.data.models.RainRiskLevel.LOW
+            maxRainProb > 0 -> com.example.data.models.RainRiskLevel.VERY_LOW
+            else -> com.example.data.models.RainRiskLevel.NONE
+        }
+
+        // 3. Factor de Calzado coherente con lluvia y suelo
         val footwearPill = when {
-            hasRainOrPuddles -> DynamicFootwearPill(
+            rainRisk == com.example.data.models.RainRiskLevel.ACTIVE || rainRisk == com.example.data.models.RainRiskLevel.HIGH -> DynamicFootwearPill(
                 icon = "🥾",
                 title = "Calzado impermeable / antideslizante",
-                reason = "Lluvia prevista. Suela antideslizante y tejido hidrófugo para pies secos."
+                reason = "Lluvia prevista o suelo mojado; suela con buen agarre para pies secos."
+            )
+            rainRisk == com.example.data.models.RainRiskLevel.MODERATE -> DynamicFootwearPill(
+                icon = "👟",
+                title = "Calzado cerrado resistente",
+                reason = "Posibilidad de lluvia; calzado cómodo y cerrado."
             )
             shadePerceived < 6.0 && minTempPeriod < 14.0 -> DynamicFootwearPill(
                 icon = "🥾",
                 title = "Calzado térmico / calcetín grueso",
-                reason = "Frío en superficie. Suela gruesa aislante para retener el calor corporal."
+                reason = "Suelo y ambiente frío; suela gruesa aislante para retener el calor."
             )
-            currentTemp >= 23.0 && !hasRainOrPuddles -> DynamicFootwearPill(
+            currentTemp >= 23.0 && rainRisk == com.example.data.models.RainRiskLevel.NONE -> DynamicFootwearPill(
                 icon = "👟",
                 title = "Calzado ultra-transpirable",
-                reason = "Zapatillas ligeras para favorecer la ventilación natural y evitar sudor."
+                reason = "Superficie seca y temperatura favorable; favorece la ventilación natural."
             )
             else -> DynamicFootwearPill(
                 icon = "👟",
                 title = "Calzado cómodo estándar",
-                reason = "Superficie seca y temperatura favorable. Calzado habitual."
+                reason = "Superficie seca y condiciones estables; calzado habitual."
             )
         }
 
-        // 3. Píldoras de Complementos Dinámicos
+        // 4. Complementos dinámicos (sin sugerencias contradictorias)
         val complementPills = mutableListOf<DynamicComplementPill>()
         val uvPeakHour = lookaheadHours.maxByOrNull { it.uvIndex ?: 0.0 }?.let { extractHour(it) } ?: 14
-        if (maxUv >= 5.5) {
+        if (maxUv >= 5.5 && isDay) {
             val uvText = "UV ${"%.1f".format(Locale.US, maxUv)} a las $uvPeakHour:00"
             complementPills.add(
                 DynamicComplementPill(
@@ -540,16 +587,45 @@ object BioclimaticClothingEngine {
                 )
             )
         }
-        if (hasRainOrPuddles || maxRainProb >= 40) {
-            complementPills.add(
-                DynamicComplementPill(
-                    icon = "🌂",
-                    label = if (maxPrecipMm >= 2.0) "Paraguas resistente" else "Paraguas compacto",
-                    isCrucial = hasRainOrPuddles
+        // Paraguas: estricto según riesgo real de lluvia
+        when (rainRisk) {
+            com.example.data.models.RainRiskLevel.ACTIVE,
+            com.example.data.models.RainRiskLevel.HIGH -> {
+                complementPills.add(
+                    DynamicComplementPill(
+                        icon = "☂️",
+                        label = if (maxPrecipMm >= 2.0) "Paraguas resistente" else "Paraguas o impermeable",
+                        isCrucial = true
+                    )
                 )
-            )
+            }
+            com.example.data.models.RainRiskLevel.MODERATE -> {
+                complementPills.add(
+                    DynamicComplementPill(
+                        icon = "🌂",
+                        label = "Paraguas compacto",
+                        isCrucial = false
+                    )
+                )
+            }
+            com.example.data.models.RainRiskLevel.LOW -> {
+                if (preferences.duration == com.example.data.models.OutingDuration.ALL_DAY) {
+                    complementPills.add(
+                        DynamicComplementPill(
+                            icon = "🌂",
+                            label = "Paraguas plegable por precaución",
+                            isCrucial = false
+                        )
+                    )
+                }
+            }
+            com.example.data.models.RainRiskLevel.VERY_LOW,
+            com.example.data.models.RainRiskLevel.NONE -> {
+                // Paraguas no se añade bajo ninguna circunstancia
+            }
         }
-        if (maxUv >= 6.5 || currentTemp >= 27.0) {
+
+        if ((maxUv >= 6.5 || currentTemp >= 27.0) && isDay) {
             complementPills.add(
                 DynamicComplementPill(
                     icon = "🧢",
@@ -557,7 +633,7 @@ object BioclimaticClothingEngine {
                 )
             )
         }
-        if ((shadePerceived < 8.0 || isDampCold) && minTempPeriod < 14.0) {
+        if ((shadePerceived < 8.0 || isDampCold) && minTempPeriod < 12.0) {
             complementPills.add(
                 DynamicComplementPill(
                     icon = "🧣",
@@ -567,17 +643,17 @@ object BioclimaticClothingEngine {
             )
         }
 
-        // 4. Sistema de Capas Modulares Reales (Método Cebolla 3 Capas)
+        // 5. Sistema de Capas Modulares Reales (Método Cebolla 3 Capas)
         val peakItem = lookaheadHours.maxByOrNull { it.temp }
         val peakHour = peakItem?.let { extractHour(it) } ?: 14
         val sunsetHourStr = extractSunsetHour(sunsetTime)
 
-        val hasWindRisk = currentWindSpeed > 20.0 || maxWind > 22.0 || effectiveGusts > 35.0 || maxGusts > 35.0
-        val hasRainRisk = hasRainOrPuddles || maxRainProb >= 40
+        val hasWindRisk = effectiveWindSpeed > 22.0 || maxWind > 24.0 || effectiveGusts > 35.0 || maxGusts > 35.0
+        val hasRainRisk = rainRisk == com.example.data.models.RainRiskLevel.HIGH || rainRisk == com.example.data.models.RainRiskLevel.ACTIVE || rainRisk == com.example.data.models.RainRiskLevel.MODERATE
 
         val layerStrategy = buildModularLayerStrategy(
             currentTemp = currentTemp,
-            perceivedTemp = sunPerceived,
+            perceivedTemp = personalizedPerceived,
             minTempPeriod = minTempPeriod,
             thermalOscillation = thermalOscillation,
             isHighOscillation = isHighOscillation,
@@ -588,7 +664,7 @@ object BioclimaticClothingEngine {
             sunsetHourStr = sunsetHourStr
         )
 
-        // 5. Línea de Tiempo Visual Rápida (4 Hitos: Salida, Mediodía, Tarde, Regreso/Noche)
+        // 6. Línea de Tiempo Visual Rápida (4 Hitos Diarios)
         val milestones = buildTimelineMilestones(
             currentTemp = currentTemp,
             lookaheadHours = lookaheadHours,
@@ -599,21 +675,20 @@ object BioclimaticClothingEngine {
             hasRainRisk = hasRainRisk
         )
 
-        // 6. Alertas de complementos detalladas
+        // 7. Alertas relevantes (Regla: no inventar alertas si no hay nada anormal)
         val complementAlerts = mutableListOf<ComplementAlert>()
-        if (hasRainRisk) {
-            val title = if (hasRainOrPuddles) "Lluvia continua o charcos" else "Chubascos probables"
+        if (rainRisk == com.example.data.models.RainRiskLevel.ACTIVE || rainRisk == com.example.data.models.RainRiskLevel.HIGH) {
             complementAlerts.add(
                 ComplementAlert(
                     icon = "☂️",
-                    title = title,
-                    description = "Probabilidad del $maxRainProb%. Lleva paraguas y usa ${footwearPill.title.lowercase(Locale.ROOT)}.",
-                    isWarning = hasRainOrPuddles
+                    title = if (rainRisk == com.example.data.models.RainRiskLevel.ACTIVE) "Lluvia activa" else "Lluvia probable",
+                    description = "Probabilidad del $maxRainProb%. Lleva paraguas o chaqueta impermeable.",
+                    isWarning = true
                 )
             )
         }
         if (hasWindRisk) {
-            val windValue = maxOf(currentWindSpeed, maxWind).roundToInt()
+            val windValue = maxOf(effectiveWindSpeed, maxWind).roundToInt()
             val gustValue = maxOf(effectiveGusts, maxGusts).roundToInt()
             val windTitle = if (minTempPeriod >= 18.0) "Viento moderado" else "Cortaaires / Cortavientos"
             val windDesc = if (minTempPeriod >= 18.0) {
@@ -644,17 +719,17 @@ object BioclimaticClothingEngine {
                 ComplementAlert(
                     icon = "💧",
                     title = "Bochorno (Humedad ${currentHumidity}%)",
-                    description = "El sudor no se evapora fácilmente; viste tejidos naturales claros y holgados.",
+                    description = "El sudor no se evapora fácilmente; viste ropa holgada y transpirable.",
                     isWarning = false
                 )
             )
         }
 
-        // Indicadores físicos calculados para el perfil fisiológico (asma, sudoración)
+        // Indicadores físicos para confort térmico
         val physical = indicators ?: BioclimaticMathEngine.calculateIndicators(
             temp = currentTemp,
             humidity = currentHumidity,
-            windSpeed = currentWindSpeed,
+            windSpeed = effectiveWindSpeed,
             cloudCover = effectiveCloud,
             uvIndex = effectiveUv,
             isDay = isDay,
@@ -664,122 +739,53 @@ object BioclimaticClothingEngine {
             windGusts = effectiveGusts
         )
 
-        // 1. Regla de Alta Transpiración y Capilaridad (Td >= 16°C o HR > 70%)
-        if (physical.isHighSweatRisk) {
-            complementAlerts.add(
-                ComplementAlert(
-                    icon = "💧",
-                    title = "Alta Capilaridad (Td ${"%.1f".format(Locale.US, physical.dewPoint)}°C / HR ${currentHumidity}%)",
-                    description = "Fuerza tejidos sintéticos microperforados o rejilla 3D de secado rápido (poliéster/poliamida). Prohibido el algodón absorbente por saturación.",
-                    isWarning = false
-                )
-            )
-        } else if (currentTemp >= 18.0 && (physical.isStickyAtmosphere || physical.isSweatEvaporationHard) && !isMuggyHeat) {
-            complementAlerts.add(
-                ComplementAlert(
-                    icon = "💧",
-                    title = "Alta Transpiración",
-                    description = "Tejidos técnicos sintéticos de secado rápido para disipar el sudor y evitar humedad corporal.",
-                    isWarning = false
-                )
-            )
-        }
-
-        // 2. Regla de Convección Urbana y Protección Pectoral Mandatoria
-        if (physical.isMandatoryChestProtection) {
-            complementAlerts.add(
-                ComplementAlert(
-                    icon = "🛡️",
-                    title = "Protección Pectoral Mandatoria",
-                    description = "Viento urbano acelerado (${"%.1f".format(Locale.US, physical.urbanWindSpeed)} km/h) con pérdida de calor pectoral de ΔT ${"%.1f".format(Locale.US, physical.deltaWindChill)}°C. Viste cortavientos cerrado o cuello alto para proteger el tórax y prevenir espasmos bronquiales.",
-                    isWarning = true
-                )
-            )
-        } else if (currentTemp < 15.0) {
-            complementAlerts.add(
-                ComplementAlert(
-                    icon = "🛡️",
-                    title = "Protección Pectoral y Respiratoria",
-                    description = "Ambiente frío (${currentTemp.roundToInt()} °C). Mantén el pecho bien abrigado y protegido del viento para prevenir enfriamientos si sudas al caminar.",
-                    isWarning = true
-                )
-            )
-        }
-
-        // 3. Regla de Protección de Mucosa Respiratoria (Aire Frío/Seco)
-        if (physical.isRespiratoryMucosaRisk) {
-            complementPills.add(
-                DynamicComplementPill(
-                    icon = "🧣",
-                    label = "Braga técnica / cuello",
-                    isCrucial = true
-                )
-            )
-            complementAlerts.add(
-                ComplementAlert(
-                    icon = "🧣",
-                    title = "Protección de Mucosa Respiratoria",
-                    description = "Aire frío/seco (${currentTemp.roundToInt()}°C, ${currentHumidity}% HR). Viste braga técnica o cuello protector de tejido poroso para atemperar e humidificar el aire antes de la inhalación.",
-                    isWarning = false
-                )
-            )
-        } else if (physical.isExtremelyDryAir) {
-            complementAlerts.add(
-                ComplementAlert(
-                    icon = "💨",
-                    title = "Aire Muy Seco",
-                    description = "Punto de rocío muy bajo (< 5 °C). Mantén hidratación regular y protege las vías respiratorias.",
-                    isWarning = false
-                )
-            )
-        }
-
-        // 4. Regla de Caída Térmica de Ocaso (Sunset Drop) y Riesgo de Sudor Frío
-        if (physical.isSunsetColdSweatRisk) {
+        // Alerta de caída de temperatura tras el ocaso (solo si es real y significativa)
+        if (physical.isSunsetColdSweatRisk && minTempPeriod < 16.0) {
             complementAlerts.add(
                 ComplementAlert(
                     icon = "⚠️",
-                    title = "Alerta Sudor Frío (Sunset Drop ${"%.1f".format(Locale.US, physical.sunsetTempDrop)}°C)",
-                    description = "Descenso térmico brusco tras el ocaso. Guarda en la mochila una prenda cortavientos ligera modular para ponértela al caer la tarde y no enfriar el sudor acumulado.",
+                    title = "Caída térmica al anochecer",
+                    description = "Descenso notable tras el ocaso (~${physical.sunsetTempDrop.roundToInt()} °C menos). Ten a mano una prenda de respaldo para la vuelta.",
                     isWarning = true
-                )
-            )
-        } else if ((hasWindRisk || physical.nocturnalDropRisk || physical.isWindChillActive) && minTempPeriod < 18.0) {
-            complementAlerts.add(
-                ComplementAlert(
-                    icon = "🌬️",
-                    title = "Cuidado Respiratorio (Asma)",
-                    description = "Protege el pecho con cortavientos o prenda de respaldo ante caídas térmicas o viento.",
-                    isWarning = hasWindRisk || physical.isWindChillActive
                 )
             )
         }
 
-        // 7. Franjas Horarias (12-18h)
+        // 8. Franjas Horarias
         val timeSlots = buildTimeSlotsAdvice(currentTemp, lookaheadHours, minTempPeriod)
 
-        // 8. Titular Hiper-Preciso en 1 frase de lectura fluida y humana (20 a 30 palabras)
-        val headline = generatePrecisionHeadline(
+        // 9. Titular Práctico y Humano para salir de casa (1-3 frases concisas)
+        val headline = generatePracticalHeadline(
             currentTemp = currentTemp.roundToInt(),
-            perceivedTemp = sunPerceived.roundToInt(),
+            perceivedTemp = personalizedPerceived.roundToInt(),
             minTempPeriod = minTempPeriod,
+            maxTempPeriod = maxTempPeriod,
             thermalOscillation = thermalOscillation,
             isHighOscillation = isHighOscillation,
             peakHour = peakHour,
             layerStrategy = layerStrategy,
-            isMuggyHeat = isMuggyHeat,
-            isDampCold = isDampCold,
-            hasRainRisk = hasRainRisk,
+            rainRisk = rainRisk,
+            hasWindRisk = hasWindRisk,
             sunsetHourStr = sunsetHourStr,
-            physical = physical
+            preferences = preferences,
+            physical = physical,
+            windowStartTemp = windowStartTemp.roundToInt(),
+            windowReturnTemp = windowReturnTemp.roundToInt()
+        )
+
+        val quickAdvice = buildQuickLeavingAdvice(
+            currentTemp = currentTemp.roundToInt(),
+            minTempPeriod = minTempPeriod,
+            rainRisk = rainRisk,
+            hasWindRisk = hasWindRisk
         )
 
         val metrics = BioclimaticMetrics(
             dryTemp = currentTemp,
             apparentTemp = currentApparentTemp ?: currentTemp,
-            bioclimaticPerceivedTemp = sunPerceived,
+            bioclimaticPerceivedTemp = personalizedPerceived,
             humidity = currentHumidity,
-            windSpeed = currentWindSpeed,
+            windSpeed = effectiveWindSpeed,
             windGusts = effectiveGusts,
             maxUv = maxUv,
             rainProb = maxRainProb,
@@ -823,7 +829,10 @@ object BioclimaticClothingEngine {
             timeSlots = timeSlots,
             complementAlerts = complementAlerts,
             metrics = metrics,
-            advancedMetrics = advancedMetrics
+            advancedMetrics = advancedMetrics,
+            rainRisk = rainRisk,
+            userPreferences = preferences,
+            quickLeavingAdvice = quickAdvice
         )
     }
 
@@ -1067,75 +1076,203 @@ object BioclimaticClothingEngine {
     }
 
     /**
-     * Titular bioclimático explicativo y razonado de alta precisión (entre 20 y 30 palabras),
-     * conectando temperatura real, tasa de transpiración, protección respiratoria (asma) y contraste sol/sombra.
+     * Titular práctico y conciso para salir de casa (1 a 3 frases claras),
+     * respondiendo directamente a "¿Qué me pongo para salir?" según temperatura,
+     * duración prevista y evolución térmica.
      */
-    private fun generatePrecisionHeadline(
+    private fun generatePracticalHeadline(
         currentTemp: Int,
         perceivedTemp: Int,
         minTempPeriod: Double,
+        maxTempPeriod: Double,
         thermalOscillation: Double,
         isHighOscillation: Boolean,
         peakHour: Int,
         layerStrategy: ModularLayerStrategy,
-        isMuggyHeat: Boolean,
-        isDampCold: Boolean,
-        hasRainRisk: Boolean,
+        rainRisk: com.example.data.models.RainRiskLevel,
+        hasWindRisk: Boolean,
         sunsetHourStr: String,
-        physical: BioclimaticPhysicalIndicators? = null
+        preferences: com.example.data.models.UserPreferences,
+        physical: BioclimaticPhysicalIndicators? = null,
+        windowStartTemp: Int = currentTemp,
+        windowReturnTemp: Int = currentTemp
     ): String {
-        val isChestProt = physical?.isMandatoryChestProtection == true
-        val isMucosaRisk = physical?.isRespiratoryMucosaRisk == true
-        val isHighSweat = physical?.isHighSweatRisk == true
-        val isSunsetRisk = physical?.isSunsetColdSweatRisk == true
-        val isSunContrast = physical?.isSunShadeContrastHigh == true
+        val isWindow = preferences.isScheduledWindow && preferences.departureHour != null && preferences.returnHour != null
+        val depStr = if (isWindow) "${preferences.departureHour}:00" else ""
+        val retStr = if (isWindow) "${preferences.returnHour}:00" else ""
 
-        return when {
-            // Protección pectoral obligatoria o frío con viento (< 15 °C)
-            isChestProt || (currentTemp < 15 && (physical?.urbanWindSpeed ?: 0.0) >= 12.0) -> {
-                "Para los $currentTemp °C con viento urbano, viste primera capa térmica sintética y cortavientos pectoral cerrado. Te ayudará a aislar el tórax y a evitar espasmos respiratorios."
+        val effectiveMinT = if (isWindow) minOf(minTempPeriod, minOf(windowStartTemp.toDouble(), windowReturnTemp.toDouble())) else minTempPeriod
+        val startT = if (isWindow) windowStartTemp else currentTemp
+        val returnT = if (isWindow) windowReturnTemp else currentTemp
+
+        // Regla estricta cálida: si la mínima es >= 18 °C, prohibido mencionar abrigo, jersey o chaqueta
+        if (effectiveMinT >= 18.0 || (startT >= 24 && returnT >= 20)) {
+            val warmGarment = if (startT >= 28 || perceivedTemp >= 28) {
+                "Prendas muy ligeras y transpirables de manga corta."
+            } else {
+                "Manga corta estándar."
             }
-            // Riesgo de mucosa por aire frío/seco
-            isMucosaRisk -> {
-                "Con $currentTemp °C y aire frío seco, viste cortavientos cerrado junto a braga técnica transpirable. Lograrás atemperar el aire inhalado y evitar enfriar el pecho si sudas al caminar."
+
+            val warmEvolution = if (isWindow) {
+                "Temperatura cálida y agradable ($startT °C a las $depStr, ~$returnT °C a las $retStr)."
+            } else if (isHighOscillation && maxTempPeriod > currentTemp + 3) {
+                "Ambiente agradable ahora ($currentTemp °C) que irá subiendo hasta unos ${maxTempPeriod.roundToInt()} °C."
+            } else {
+                "Temperatura cálida y estable en torno a $currentTemp °C."
             }
-            // Regla fría general (< 15 °C)
-            currentTemp < 15 || perceivedTemp < 15 -> {
-                if (isDampCold || currentTemp <= 8) {
-                    "Para los $currentTemp °C de hoy, viste primera capa térmica transpirable, capa intermedia y cortavientos cerrado. Evitarás enfriar el pecho y sufrir espasmos si sudas al caminar."
-                } else {
-                    "Con $currentTemp °C, viste primera capa térmica transpirable y cortavientos protector. Mantendrás el pecho resguardado del viento y prevendrás enfriamientos al caminar con sudor corporal."
+
+            val rainNote = when (rainRisk) {
+                com.example.data.models.RainRiskLevel.ACTIVE -> " Lleva paraguas o chubasquero fino por lluvia activa."
+                com.example.data.models.RainRiskLevel.HIGH -> " Posibilidad alta de chubasco; lleva paraguas o chubasquero fino."
+                com.example.data.models.RainRiskLevel.MODERATE -> " Algún chubasco aislado posible; considera llevar paraguas compacto."
+                else -> ""
+            }
+
+            return "$warmGarment $warmEvolution$rainNote".trim()
+        }
+
+        // Recomendación principal de prenda
+        val primaryGarment = when {
+            effectiveMinT < 7 || startT < 7 -> "🧥 Abrigo o cazadora gruesa con capa base cálida."
+            effectiveMinT in 7.0..13.0 || startT in 7..13 -> "🧥 Chaqueta de entretiempo o abrigo ligero."
+            returnT <= 14 && startT >= 18 -> "🧥 Chaqueta fina fácil de quitar."
+            effectiveMinT in 14.0..18.0 || startT in 14..18 -> "🧥 Chaqueta fina sobre camiseta de manga corta."
+            startT in 19..23 -> "👕 Manga corta con una capa ligera de respaldo si refresca."
+            else -> "👕 Manga corta transpirable."
+        }
+
+        // Evolución térmica según la ventana o duración
+        val evolutionText = if (isWindow) {
+            when {
+                returnT <= startT - 3 -> {
+                    "Saldrás con $startT °C ($depStr), pero refrescará hasta unos $returnT °C al regresar ($retStr)."
+                }
+                maxTempPeriod.roundToInt() >= startT + 3 -> {
+                    "Fresco al salir ($startT °C a las $depStr), alcanzando unos ${maxTempPeriod.roundToInt()} °C y quedando en $returnT °C a las $retStr."
+                }
+                else -> {
+                    "Ambiente estable de $depStr a $retStr en torno a $startT °C (regreso a ~$returnT °C)."
                 }
             }
-            // Alta transpiración / saturación de sudor (Td >= 16 °C o HR > 70%)
-            isHighSweat || isMuggyHeat -> {
-                "Para los $currentTemp °C con alta humedad, opta por camisetas sintéticas de alta capilaridad sin algodón. Te ayudará a disipar el sudor constante y a evitar saturación dérmica."
-            }
-            // Regla cálida (mínima >= 18 °C o temperatura real >= 24 °C)
-            minTempPeriod >= 18.0 || currentTemp >= 24 -> {
-                if (isSunContrast) {
-                    "Para los $currentTemp °C con fuerte radiación solar, viste prendas técnicas ultraligeras de manga corta. Te ayudará a evacuar el sudor rápidamente y a regularte entre sol y sombra."
-                } else {
-                    "Para estos $currentTemp °C con mínima de ${minTempPeriod.roundToInt()} °C, utiliza prendas sintéticas transpirables de manga corta. Lograrás ventilación óptima y evaporación continua del sudor sin sobrecalentarte."
+        } else {
+            when (preferences.duration) {
+                com.example.data.models.OutingDuration.SHORT -> {
+                    "Fresco ahora ($currentTemp °C); abrígate lo justo para salir."
                 }
-            }
-            // Caída de ocaso o sudor frío
-            isSunsetRisk -> {
-                "Para los $currentTemp °C con descenso vespertino, opta por camiseta técnica transpirable y cortavientos modular en mochila. Te ayudará a regular la temperatura y a prevenir el sudor frío."
-            }
-            // Lluvia
-            hasRainRisk -> {
-                "Con riesgo de lluvia y $currentTemp °C, viste cortavientos impermeable transpirable con calzado antideslizante. Evitarás que la humedad penetre al pecho manteniendo una evaporación corporal adecuada."
-            }
-            // Oscilación alta o capas activas en entretiempo (15 °C a 20 °C)
-            layerStrategy.isActive || isHighOscillation -> {
-                "Jornada de entretiempo con $currentTemp °C y oscilación térmica notable. Viste camiseta técnica transpirable junto a chaqueta modular fácil de abrir para regular sudor y pecho."
-            }
-            // Confort templado estándar
-            else -> {
-                "Con $currentTemp °C templados, viste camiseta sintética transpirable de manga corta con chaqueta ligera de respaldo. Regularás el sudor corporal al caminar previniendo enfriamientos imprevistos al anochecer."
+                com.example.data.models.OutingDuration.MEDIUM -> {
+                    if (isHighOscillation && maxTempPeriod > currentTemp + 2) {
+                        "Fresco ahora ($currentTemp °C), pero irá calentando durante el día hasta unos ${maxTempPeriod.roundToInt()} °C."
+                    } else if (minTempPeriod < currentTemp - 2) {
+                        "Sensación fresca de $currentTemp °C que tenderá a bajar ligeramente."
+                    } else {
+                        "Ambiente fresco y estable en torno a $currentTemp °C durante la salida."
+                    }
+                }
+                com.example.data.models.OutingDuration.ALL_DAY -> {
+                    if (minTempPeriod < 15.0 && (physical?.isSunsetColdSweatRisk == true || physical?.nocturnalDropRisk == true)) {
+                        "Tarde templada (~${maxTempPeriod.roundToInt()} °C), pero refrescará bastante al anochecer (~${minTempPeriod.roundToInt()} °C); conserva la chaqueta para la vuelta."
+                    } else if (isHighOscillation) {
+                        "Fresco a primera hora y al anochecer, con mediodía templado (~${maxTempPeriod.roundToInt()} °C)."
+                    } else {
+                        "Fresco continuado durante la jornada; mantén las capas a mano."
+                    }
+                }
             }
         }
+
+        // Nota de lluvia (estricta y sin contradicciones)
+        val rainText = when (rainRisk) {
+            com.example.data.models.RainRiskLevel.ACTIVE -> " Lloviendo ahora; imprescindible paraguas o impermeable."
+            com.example.data.models.RainRiskLevel.HIGH -> " Lluvia probable; lleva paraguas o impermeable."
+            com.example.data.models.RainRiskLevel.MODERATE -> " Posibilidad de lluvia; considera llevar paraguas si vas a estar fuera."
+            com.example.data.models.RainRiskLevel.LOW -> if (preferences.duration == com.example.data.models.OutingDuration.ALL_DAY || isWindow) {
+                " Baja probabilidad de lluvia; paraguas plegable por precaución."
+            } else {
+                " No parece necesario llevar paraguas."
+            }
+            com.example.data.models.RainRiskLevel.VERY_LOW,
+            com.example.data.models.RainRiskLevel.NONE -> ""
+        }
+
+        // Nota contextual personalizada
+        val personalNote = when {
+            preferences.sensitivity == com.example.data.models.ThermalSensitivity.FRIOLERO -> {
+                " (Si sueles tener frío, una capa fina adicional te dará mayor confort)."
+            }
+            preferences.activity == com.example.data.models.ActivityType.CYCLING -> {
+                " (En bici el viento aumenta el fresco; cortavientos frontal aconsejado)."
+            }
+            else -> ""
+        }
+
+        return "$primaryGarment $evolutionText$rainText$personalNote".trim()
+    }
+
+    /**
+     * Sintetiza la tendencia térmica interdiaria solo cuando los datos
+     * realmente lo justifiquen (|ΔT| >= 2.5 °C o tendencia progresiva de 3+ días).
+     */
+    fun calculateTrendSummary(dailyItems: List<com.example.data.models.DailyItem>): String? {
+        if (dailyItems.size < 2) return null
+        val today = dailyItems[0]
+        val tomorrow = dailyItems[1]
+        val deltaTomorrow = tomorrow.maxTemp - today.maxTemp
+
+        // Tendencia progresiva en los próximos 3-4 días
+        if (dailyItems.size >= 4) {
+            val day2 = dailyItems[2]
+            val day3 = dailyItems[3]
+            val isProgressiveDrop = tomorrow.maxTemp < today.maxTemp &&
+                    day2.maxTemp <= tomorrow.maxTemp &&
+                    day3.maxTemp <= day2.maxTemp &&
+                    (today.maxTemp - day3.maxTemp) >= 4
+
+            if (isProgressiveDrop) {
+                return "📉 Descenso progresivo de temperaturas durante los próximos días."
+            }
+
+            val isProgressiveRise = tomorrow.maxTemp > today.maxTemp &&
+                    day2.maxTemp >= tomorrow.maxTemp &&
+                    day3.maxTemp >= day2.maxTemp &&
+                    (day3.maxTemp - today.maxTemp) >= 4
+
+            if (isProgressiveRise) {
+                return "📈 Ascenso progresivo de temperaturas durante los próximos días."
+            }
+        }
+
+        // Variación notable entre hoy y mañana
+        return when {
+            deltaTomorrow <= -3 -> "📉 Mañana refresca unos ${kotlin.math.abs(deltaTomorrow)} °C respecto a hoy."
+            deltaTomorrow >= 3 -> "📈 Mañana subirán unos $deltaTomorrow °C respecto a hoy."
+            else -> null
+        }
+    }
+
+    /**
+     * Resumen ultracorto para lectura rápida.
+     */
+    private fun buildQuickLeavingAdvice(
+        currentTemp: Int,
+        minTempPeriod: Double,
+        rainRisk: com.example.data.models.RainRiskLevel,
+        hasWindRisk: Boolean
+    ): String {
+        val garment = when {
+            minTempPeriod >= 18.0 || currentTemp >= 24 -> "Manga corta"
+            currentTemp < 7 -> "Abrigo grueso"
+            currentTemp in 7..13 -> "Chaqueta / Jersey"
+            currentTemp in 14..18 -> "Chaqueta fina"
+            else -> "Manga corta"
+        }
+        val icon = when {
+            rainRisk == com.example.data.models.RainRiskLevel.ACTIVE || rainRisk == com.example.data.models.RainRiskLevel.HIGH -> "☂️"
+            hasWindRisk -> "💨"
+            minTempPeriod >= 18.0 -> "☀️"
+            currentTemp < 14 -> "🧥"
+            else -> "👕"
+        }
+        return "$icon $garment ($currentTemp °C)"
     }
 
     /**

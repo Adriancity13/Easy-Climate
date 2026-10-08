@@ -53,6 +53,7 @@ import com.example.utils.WeatherUtils
 @Composable
 fun DailyForecastAccordionList(
     dailyItems: List<DailyItem>,
+    trendSummary: String? = null,
     modifier: Modifier = Modifier
 ) {
     if (dailyItems.isEmpty()) return
@@ -61,7 +62,7 @@ fun DailyForecastAccordionList(
     var expandedIndex by remember { mutableStateOf<Int?>(null) }
 
     Column(modifier = modifier.fillMaxWidth()) {
-        // Section Header (Clean typography)
+        // Section Header (Clean typography: Previsión orientativa de 7 días)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -70,17 +71,35 @@ fun DailyForecastAccordionList(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Próximos 7 días",
+                text = "Previsión de 7 días",
                 color = Color.White,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Toca para ver sus 24h",
+                text = "Tendencia orientativa",
                 color = Color.White.copy(alpha = 0.70f),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Normal
             )
+        }
+
+        // Factual Trend Summary Banner (Only shown if data truly justifies it)
+        trendSummary?.let { trend ->
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 7.dp)
+            ) {
+                Text(
+                    text = trend,
+                    color = Color.White.copy(alpha = 0.95f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -183,7 +202,16 @@ private fun DailyAccordionRow(
                     textAlign = TextAlign.Center
                 )
 
-                if (item.bioclimaticAlert != null) {
+                if (item.trendNote != null) {
+                    Text(
+                        text = item.trendNote,
+                        color = Color(0xFFBAE6FD),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else if (item.bioclimaticAlert != null) {
                     Box(
                         modifier = Modifier
                             .background(Color(0x35EF4444), RoundedCornerShape(4.dp))
